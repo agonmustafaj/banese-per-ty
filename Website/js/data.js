@@ -1,4 +1,5 @@
 import { isSupabaseEnabled } from './config.js';
+import { t, locale } from './i18n.js';
 import { loadAllFromSupabase, syncAllToSupabase } from './supabase/sync.js';
 
 export const PAGE_SIZE = 20;
@@ -225,17 +226,12 @@ export function generateId(prefix) {
 }
 
 export function getRoleLabel(role) {
-  const labels = {
-    'qiradhënësi': 'Qeradhënës',
-    'qiramarrësi': 'Qeramarrës',
-    administrator: 'Administrator',
-  };
-  return labels[role] || role;
+  return t(`role.${role}`) || role;
 }
 
 export function formatDate(dateStr) {
   if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleDateString('sq-AL', { day: '2-digit', month: 'long', year: 'numeric' });
+  return new Date(dateStr).toLocaleDateString(locale(), { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
 export function formatCurrency(amount) {
@@ -254,15 +250,15 @@ export function monthsUntil(dateStr) {
 }
 
 export function getExpenseTypeLabel(type) {
-  return EXPENSE_TYPES.find((t) => t.id === type)?.label || type;
+  return t(`expenseType.${type}`) || EXPENSE_TYPES.find((e) => e.id === type)?.label || type;
 }
 
 export function getContractStatusLabel(status) {
-  return CONTRACT_STATUSES[status] || status;
+  return t(`contractStatus.${status}`) || CONTRACT_STATUSES[status] || status;
 }
 
 export function getPaymentStatusLabel(status) {
-  return PAYMENT_STATUSES[status] || status;
+  return t(`paymentStatus.${status}`) || PAYMENT_STATUSES[status] || status;
 }
 
 export function getCampusName(id) {

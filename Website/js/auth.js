@@ -1,8 +1,8 @@
 import { loadData, saveData } from './data.js';
-import { addAuditLog } from './services-core.js';
+import { addAuditLog, clearAuditLog } from './services-core.js';
 import { isSupabaseEnabled } from './config.js';
 import { getSupabase } from './supabase/client.js';
-import { fetchProfile, updateProfileSupabase } from './supabase/sync.js';
+import { fetchProfile, updateProfileSupabase, deleteOwnAccountSupabase } from './supabase/sync.js';
 
 let cachedUser = null;
 
@@ -94,7 +94,7 @@ export async function login(email, password) {
       return { success: false, error: msg };
     }
     cachedUser = await fetchProfile(data.user.id);
-    addAuditLog('login', cachedUser.id, `${cachedUser.fullName} u kyç në sistem.`);
+    await clearAuditLog();
     return { success: true, user: cachedUser };
   });
 }
@@ -133,7 +133,7 @@ export async function register({ fullName, email, password, role, userType, camp
     }
 
     cachedUser = await fetchProfile(data.user.id);
-    addAuditLog('register', cachedUser.id, `Regjistrim i ri: ${cachedUser.fullName}`);
+    await clearAuditLog();
     return { success: true, user: cachedUser };
   });
 }
@@ -189,11 +189,30 @@ export async function changePassword(userId, currentPassword, newPassword) {
 }
 
 export async function logout() {
+  await clearAuditLog();
   if (isSupabaseEnabled()) {
     await getSupabase().auth.signOut();
   }
   cachedUser = null;
   sessionStorage.removeItem('banese_user_cache');
+}
+
+export async function deleteAccount() {
+  try {
+    requireSupabase();
+    await deleteOwnAccountSupabase();
+    if (isSupabaseEnabled()) {
+      await getSupabase().auth.signOut();
+    }
+    cachedUser = null;
+    sessionStorage.removeItem('banese_user_cache');
+    const data = loadData();
+    data.auditLog = [];
+    saveData(data);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message || 'Gabim gjatë fshirjes së llogarisë.' };
+  }
 }
 
 export async function isAuthenticated() {

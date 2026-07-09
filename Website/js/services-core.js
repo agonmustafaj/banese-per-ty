@@ -1,6 +1,6 @@
 import { loadData, saveData, generateId } from './data.js';
 import { isSupabaseEnabled } from './config.js';
-import { insertNotificationSupabase, insertAuditSupabase } from './supabase/sync.js';
+import { insertNotificationSupabase, insertAuditSupabase, clearAuditLogSupabase } from './supabase/sync.js';
 
 export function addNotification(userId, type, message) {
   const notification = {
@@ -26,6 +26,19 @@ export function addNotification(userId, type, message) {
   }
 
   saveData(data);
+}
+
+export async function clearAuditLog() {
+  const data = loadData();
+  data.auditLog = [];
+  saveData(data);
+  if (isSupabaseEnabled()) {
+    try {
+      await clearAuditLogSupabase();
+    } catch (err) {
+      console.error('Pastrim audit log:', err);
+    }
+  }
 }
 
 export function addAuditLog(action, userId, details) {

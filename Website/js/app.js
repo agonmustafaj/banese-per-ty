@@ -5,9 +5,12 @@ import {
   logout,
   updateProfile,
   changePassword,
+  deleteAccount,
   initAuth,
 } from './auth.js';
 import { loadDataAsync } from './data.js';
+import { parseAppUrl, resolvePageAfterAuth, syncUrlState, canAccessPage } from './nav.js';
+import { initI18n, onLangChange, t, getDeleteConfirmWord } from './i18n.js';
 import { renderLogin, renderAppShell, attachShellEvents } from './views/layout.js';
 import {
   renderLandlordHome,
@@ -21,6 +24,7 @@ import {
   renderFavoritesPage,
   renderLandlordExpensesPage,
   renderAdminApprovalsPage,
+  renderAdminUsersPage,
   renderNotificationsPage,
   showContractModal,
   showSignatureModal,
@@ -61,16 +65,34 @@ let paymentPeriod = {};
 async function navigate(page) {
   currentPage = page;
   if (page !== 'add-property') editingPropertyId = null;
+  if (page !== 'login' && isAuthenticatedSync()) {
+    syncUrlState(page);
+  }
   await render();
+}
+
+function handlePopState() {
+  const { entry, page } = parseAppUrl();
+  if (!isAuthenticatedSync()) {
+    currentPage = 'login';
+  } else {
+    const user = getCurrentUserSync();
+    if (page && user && canAccessPage(user, page)) {
+      currentPage = page;
+    } else if (user) {
+      currentPage = resolvePageAfterAuth(user, entry, null);
+    }
+  }
+  render();
 }
 
 async function render() {
   if (!isAuthenticatedSync() || currentPage === 'login') {
     currentPage = 'login';
     const { html, attachEvents } = renderLogin(async (p) => {
-      if (p === 'home') await loadDataAsync();
+      await loadDataAsync();
       await navigate(p);
-    });
+    }, () => render());
     app.innerHTML = html;
     attachEvents(app);
     return;
@@ -80,9 +102,9 @@ async function render() {
   if (!user) {
     currentPage = 'login';
     const { html, attachEvents } = renderLogin(async (p) => {
-      if (p === 'home') await loadDataAsync();
+      await loadDataAsync();
       await navigate(p);
-    });
+    }, () => render());
     app.innerHTML = html;
     attachEvents(app);
     return;
@@ -121,6 +143,9 @@ async function render() {
     case 'approvals':
       content = renderAdminApprovalsPage();
       break;
+    case 'users':
+      content = renderAdminUsersPage();
+      break;
     case 'notifications':
       content = renderNotificationsPage();
       break;
@@ -131,7 +156,12 @@ async function render() {
 
   const unread = getUnreadCount(user.id);
   app.innerHTML = renderAppShell(user, currentPage, content, unread);
-  attachShellEvents(app, navigate, () => { logout(); navigate('login'); });
+  attachShellEvents(app, navigate, async () => {
+    await logout();
+    currentPage = 'login';
+    history.replaceState({}, '', window.location.pathname);
+    await render();
+  }, () => render());
   attachPageEvents(currentPage, user);
 }
 
@@ -147,9 +177,9 @@ function attachPageEvents(page, user) {
     });
     app.querySelectorAll('.delete-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        if (confirm('Fshini këtë banesë?')) {
+        if (confirm(t('alert.deleteProperty'))) {
           const result = deleteProperty(btn.dataset.id);
-          alert(result.error || 'U fshi.');
+          alert(result.error || t('alert.deleted'));
           render();
         }
       });
@@ -161,7 +191,7 @@ function attachPageEvents(page, user) {
           const result = createContract(form);
           if (!result.success) { alert(result.error); return; }
           await saveContractPdf(result.contract, loadData());
-          alert('Kontrata u gjenerua dhe u dërgua te qeramarrësi për nënshkrim!');
+          alert(t('alert.contractGenerated'));
           render();
         });
       });
@@ -173,10 +203,10 @@ function attachPageEvents(page, user) {
       btn.addEventListener('click', () => {
         const approved = btn.dataset.action === 'approve';
         let reason = '';
-        if (!approved) reason = prompt('Arsyeja e refuzimit:') || '';
+        if (!approved) reason = prompt(t('alert.rejectReason')) || '';
         const result = approveProperty(btn.dataset.id, approved, reason);
         if (!result.success) { alert(result.error); render(); return; }
-        alert(approved ? 'Prona u miratua!' : 'Prona u refuzua.');
+        alert(approved ? t('alert.propertyApproved') : t('alert.propertyRejected'));
         render();
       });
     });
@@ -231,7 +261,7 @@ function attachPageEvents(page, user) {
       });
 
       if (!result.success) { alert(result.error); return; }
-      alert(result.pendingApproval ? 'Prona u dërgua për miratim te administratori.' : 'U ruajt!');
+      alert(result.pendingApproval ? t('alert.savedPending') : t('alert.saved'));
       navigate('home');
     });
   }
@@ -248,7 +278,7 @@ function attachPageEvents(page, user) {
         userType: fd.get('userType'),
         campusId: fd.get('campusId'),
       });
-      alert(result.success ? 'U ruajt!' : result.error);
+      alert(result.success ? t('alert.saved') : result.error);
       render();
     });
 
@@ -256,11 +286,26 @@ function attachPageEvents(page, user) {
       e.preventDefault();
       const fd = new FormData(e.target);
       if (fd.get('newPassword') !== fd.get('confirmPassword')) {
-        alert('Fjalëkalimet nuk përputhen.');
+        alert(t('alert.passwordMismatch'));
         return;
       }
       const result = await changePassword(user.id, fd.get('currentPassword'), fd.get('newPassword'));
-      alert(result.success ? 'Fjalëkalimi u ndryshua!' : result.error);
+      alert(result.success ? t('alert.passwordChanged') : result.error);
+    });
+
+    app.querySelector('#delete-account-btn')?.addEventListener('click', async () => {
+      if (!confirm(t('alert.deleteAccountConfirm'))) return;
+      const typed = prompt(t('alert.deleteAccountType'));
+      if (typed !== getDeleteConfirmWord()) return;
+      const result = await deleteAccount();
+      if (result.success) {
+        alert(t('alert.deleteAccountDone'));
+        currentPage = 'login';
+        history.replaceState({}, '', window.location.pathname);
+        await render();
+      } else {
+        alert(result.error);
+      }
     });
   }
 
@@ -299,27 +344,27 @@ function attachPageEvents(page, user) {
           if (!result.success) { onError(result.error); return; }
           close();
           alert(result.approved
-            ? 'Dëshmia e pagesës u verifikua automatikisht nga sistemi — pagesa është konfirmuar!'
-            : 'Dëshmia u dërgua te qeradhënësi për shqyrtim manual.');
+            ? t('alert.proofApproved')
+            : t('alert.proofSent'));
           render();
         });
       });
     });
     app.querySelectorAll('.dispute-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        const reason = prompt('Arsyeja e ankimimit:');
+        const reason = prompt(t('alert.disputeReason'));
         if (reason) { disputePayment(btn.dataset.id, reason); render(); }
       });
     });
     app.querySelectorAll('.resolve-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        resolveDispute(btn.dataset.id, confirm('Pranoni pagesën si të paguar?'));
+        resolveDispute(btn.dataset.id, confirm(t('alert.acceptPayment')));
         render();
       });
     });
     app.querySelectorAll('.confirm-cash-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
-        if (confirm('Konfirmoni se e keni marrë këtë pagesë në dorë (cash)?')) {
+        if (confirm(t('alert.confirmCash'))) {
           markPaymentPaid(btn.dataset.id);
           render();
         }
@@ -343,7 +388,7 @@ function attachPageEvents(page, user) {
         amount: fd.get('amount'),
         month: fd.get('month'),
       });
-      alert(result.success ? 'Shpenzimi u shtua!' : result.error);
+      alert(result.success ? t('alert.expenseAdded') : result.error);
       if (result.success) e.target.reset();
     });
   }
@@ -357,16 +402,16 @@ function attachPageEvents(page, user) {
         showSignatureModal(app, contract, async (signature) => {
           const result = await signContract(btn.dataset.id, true, signature);
           if (!result.success) { alert(result.error); return; }
-          alert('Kontrata u nënshkrua elektronikisht dhe është tani aktive!');
+          alert(t('alert.contractSigned'));
           render();
         });
       });
     });
     app.querySelectorAll('.sign-reject-btn').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        if (confirm('Refuzoni kontratën?')) {
+        if (confirm(t('alert.rejectContract'))) {
           await signContract(btn.dataset.id, false);
-          alert('Kontrata u anulua.');
+          alert(t('alert.contractCancelled'));
           render();
         }
       });
@@ -404,13 +449,13 @@ function bindSearchEvents(user) {
   app.querySelector('#next-page')?.addEventListener('click', () => runSearch(searchState.page + 1));
   app.querySelector('#agency-btn')?.addEventListener('click', () => {
     requestAgencyHelp(searchState.filters);
-    alert('Kërkesa u dërgua te agjencia partner. Do të kontaktoheni së shpejti.');
+    alert(t('alert.agencySent'));
   });
 
   app.querySelectorAll('.request-contract-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       const result = requestContract(btn.dataset.id);
-      alert(result.success ? 'Kërkesa u dërgua!' : result.error);
+      alert(result.success ? t('alert.requestSent') : result.error);
       render();
     });
   });
@@ -436,8 +481,21 @@ async function saveContractPdf(contract, data) {
 }
 
 async function init() {
+  initI18n();
+  onLangChange(() => render());
   await initAuth();
-  await loadDataAsync();
+  const { entry, page } = parseAppUrl();
+
+  if (isAuthenticatedSync()) {
+    await loadDataAsync();
+    const user = getCurrentUserSync();
+    currentPage = resolvePageAfterAuth(user, entry, page);
+    syncUrlState(currentPage, true);
+  } else {
+    currentPage = 'login';
+  }
+
+  window.addEventListener('popstate', handlePopState);
   await render();
 }
 

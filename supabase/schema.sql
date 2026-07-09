@@ -220,6 +220,39 @@ create policy "notifications_own" on public.notifications for all using (user_id
 create policy "audit_insert" on public.audit_log for insert with check (auth.uid() is not null);
 create policy "audit_select" on public.audit_log for select using (user_id = auth.uid() or public.is_admin());
 
+-- Fshirje llogarie & pastrim audit (RPC)
+create or replace function public.clear_audit_log()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from public.audit_log;
+end;
+$$;
+
+create or replace function public.delete_own_account()
+returns void
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+declare
+  uid uuid := auth.uid();
+begin
+  if uid is null then
+    raise exception 'Nuk jeni i autentifikuar.';
+  end if;
+  delete from auth.users where id = uid;
+end;
+$$;
+
+revoke all on function public.clear_audit_log() from public;
+grant execute on function public.clear_audit_log() to authenticated;
+revoke all on function public.delete_own_account() from public;
+grant execute on function public.delete_own_account() to authenticated;
+
 -- Agency requests
 create policy "agency_own" on public.agency_requests for all using (user_id = auth.uid() or public.is_admin());
 

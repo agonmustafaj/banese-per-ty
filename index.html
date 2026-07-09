@@ -74,7 +74,7 @@
         <button type="button" class="lang-btn" data-lang="sq" aria-label="Shqip">SQ</button>
         <button type="button" class="lang-btn" data-lang="en" aria-label="English">EN</button>
       </div>
-      <a href="Website/index.html" class="btn btn-primary header-cta" data-i18n="header.cta">Hyr në Platformë</a>
+      <a href="Website/index.html" class="btn btn-primary header-cta" data-app-entry="login" data-i18n="header.cta">Hyr në Platformë</a>
       <button class="nav-toggle" id="nav-toggle" aria-label="Hap menynë" aria-expanded="false">
         <span class="nav-toggle-bar"></span>
         <span class="nav-toggle-bar"></span>
@@ -92,8 +92,8 @@
         <h1 data-i18n-html="hero.title">Gjej ose jep me qera banesën ideale, <span class="accent">pa telashe.</span></h1>
         <p class="hero-sub" data-i18n="hero.sub">Kërkim i avancuar banesash, kontrata elektronike me nënshkrim digjital, pagesa të verifikuara automatikisht dhe menaxhim i plotë i qerasë — kudo në Kosovë, në një vend.</p>
         <div class="hero-cta">
-          <a href="Website/index.html" class="btn btn-primary btn-lg" data-i18n="hero.ctaSearch">Kërko Banesë →</a>
-          <a href="Website/index.html" class="btn btn-outline btn-lg" data-i18n="hero.ctaPublish">Publiko Pronën Tënde</a>
+          <a href="Website/index.html" class="btn btn-primary btn-lg" data-app-entry="search" data-i18n="hero.ctaSearch">Kërko Banesë →</a>
+          <a href="Website/index.html" class="btn btn-outline btn-lg" data-app-entry="publish" data-i18n="hero.ctaPublish">Publiko Pronën Tënde</a>
         </div>
         <div class="hero-trust">
           <div><strong>500+</strong><span data-i18n="hero.trust1">Prona të Publikuara</span></div>
@@ -193,7 +193,7 @@
             <li data-i18n="tenant.li4">Mund të kesh njëkohësisht disa kontrata aktive</li>
             <li data-i18n="tenant.li5">Ngarko dëshmi pagese dhe merr konfirmim të shpejtë</li>
           </ul>
-          <a href="Website/index.html" class="btn btn-primary" data-i18n="tenant.cta">Gjej Banesën Tënde</a>
+          <a href="Website/index.html" class="btn btn-primary" data-app-entry="search" data-i18n="tenant.cta">Gjej Banesën Tënde</a>
         </div>
         <div class="persona-card">
           <div class="persona-icon persona-icon-landlord"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="2" width="16" height="20" rx="1.5"/><rect x="8" y="6.5" width="2.2" height="2.2" fill="currentColor" stroke="none"/><rect x="13.8" y="6.5" width="2.2" height="2.2" fill="currentColor" stroke="none"/><rect x="8" y="11" width="2.2" height="2.2" fill="currentColor" stroke="none"/><rect x="13.8" y="11" width="2.2" height="2.2" fill="currentColor" stroke="none"/><path d="M9 22v-4a3 3 0 0 1 6 0v4"/></svg></div>
@@ -205,7 +205,7 @@
             <li data-i18n="landlord.li4">Menaxho shpenzime shtesë (rrymë, ujë, termokos, etj.)</li>
             <li data-i18n="landlord.li5">Shqyrto dëshmitë e pagesave dhe mirato me një klik</li>
           </ul>
-          <a href="Website/index.html" class="btn btn-primary" data-i18n="landlord.cta">Publiko Pronën Tënde</a>
+          <a href="Website/index.html" class="btn btn-primary" data-app-entry="publish" data-i18n="landlord.cta">Publiko Pronën Tënde</a>
         </div>
       </div>
     </div>
@@ -256,7 +256,7 @@
     <div class="container cta-inner">
       <h2 data-i18n="cta.title">Gati të fillosh?</h2>
       <p data-i18n="cta.sub">Regjistrohu falas dhe bëhu pjesë e platformës më të thjeshtë për qera, aktive kudo në Kosovë.</p>
-      <a href="Website/index.html" class="btn btn-white btn-lg" data-i18n="cta.button">Hyr në Platformë →</a>
+      <a href="Website/index.html" class="btn btn-white btn-lg" data-app-entry="login" data-i18n="cta.button">Hyr në Platformë →</a>
     </div>
   </section>
 </main>
@@ -283,13 +283,14 @@
     </div>
     <div class="footer-col">
       <h4 data-i18n="footer.platformHeading">Platforma</h4>
-      <a href="Website/index.html" data-i18n="footer.login">Hyr / Regjistrohu</a>
+      <a href="Website/index.html" data-app-entry="login" data-i18n="footer.login">Hyr / Regjistrohu</a>
       <a href="#si-funksionon" data-i18n="nav.how">Si Funksionon</a>
       <a href="#veçorite" data-i18n="nav.features">Veçoritë</a>
     </div>
     <div class="footer-col">
       <h4 data-i18n="footer.contactHeading">Kontakt</h4>
-      <a href="Website/index.html" data-i18n="footer.login">Hyr / Regjistrohu në platformë</a>
+      <p data-i18n="footer.emailLabel">Email:</p>
+      <a href="mailto:contact.baneseperty@gmail.com">contact.baneseperty@gmail.com</a>
     </div>
   </div>
   <div class="footer-bottom">
@@ -300,6 +301,8 @@
   </div>
 </footer>
 
-<script src="js/landing.js?v=4"></script>
+<script src="Website/js/config.deploy.js"></script>
+<script type="module" src="js/landing-nav.js?v=1"></script>
+<script src="js/landing.js?v=5"></script>
 </body>
 </html>

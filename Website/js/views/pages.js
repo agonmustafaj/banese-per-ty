@@ -32,12 +32,13 @@ import {
   EXPENSE_TYPES,
   PAGE_SIZE,
 } from '../services.js';
-import { getPhotoSrc, hasValidPhotos } from '../data.js';
+import { getPhotoSrc, hasValidPhotos, getRoleLabel } from '../data.js';
 import { icons } from '../icons.js';
 import { renderBackButton } from './layout.js';
+import { t, formatLocaleString, formatLocaleDate } from '../i18n.js';
 
 function propertySpecs(p) {
-  return `${p.rooms} Dhoma • ${p.bathrooms || 1} Banjë • ${p.area || '-'}m²`;
+  return t('property.specs', { rooms: p.rooms, bathrooms: p.bathrooms || 1, area: p.area || '-' });
 }
 
 function statusBadgeClass(status) {
@@ -48,12 +49,12 @@ function statusBadgeClass(status) {
 }
 
 function propertyStatusLabel(p) {
-  if (p.status === 'në pritje') return 'Në pritje miratimi';
-  if (p.status === 'refuzuar') return 'Refuzuar';
-  if (p.status === 'rezervuar') return 'E rezervuar';
-  if (p.status === 'me qera' || isPropertyOccupied(p.id)) return 'Me qera';
-  if (isPropertyReserved(p.id)) return 'E rezervuar';
-  return p.status === 'publikuar' ? 'E lirë' : p.status;
+  if (p.status === 'në pritje') return t('property.status.pendingApproval');
+  if (p.status === 'refuzuar') return t('property.status.rejected');
+  if (p.status === 'rezervuar') return t('property.status.reserved');
+  if (p.status === 'me qera' || isPropertyOccupied(p.id)) return t('property.status.rented');
+  if (isPropertyReserved(p.id)) return t('property.status.reserved');
+  return p.status === 'publikuar' ? t('property.status.available') : p.status;
 }
 
 function propertyRow(p) {
@@ -65,8 +66,8 @@ function propertyRow(p) {
   let contractAction = '';
   if (!occupied && p.status === 'publikuar') {
     contractAction = pendingRequests.length > 0
-      ? `<button class="btn btn-blue btn-sm contract-btn" data-id="${p.id}">Gjenero Kontratë (${pendingRequests.length})</button>`
-      : `<span class="request-hint">Në pritje të kërkesës nga qeramarrësi</span>`;
+      ? `<button class="btn btn-blue btn-sm contract-btn" data-id="${p.id}">${t('landlord.generateContractCount', { count: pendingRequests.length })}</button>`
+      : `<span class="request-hint">${t('landlord.waitingTenant')}</span>`;
   }
 
   const thumbSrc = getPhotoSrc(p.photos?.[0]);
@@ -82,19 +83,19 @@ function propertyRow(p) {
           <h3>${p.title}</h3>
           <div class="address">${icons.pin} ${p.address}</div>
           <div class="specs">${icons.bed} ${propertySpecs(p)}</div>
-          <div class="price">${formatCurrency(p.rentPrice)}/muaj</div>
-          ${p.nearCampus ? `<div class="sub-status">Afër: ${getCampusName(p.nearCampus)}</div>` : ''}
+          <div class="price">${formatCurrency(p.rentPrice)}${t('common.perMonth')}</div>
+          ${p.nearCampus ? `<div class="sub-status">${t('common.near')}: ${getCampusName(p.nearCampus)}</div>` : ''}
         </div>
         <div class="property-status">
           <span class="status-badge ${statusClass}">${propertyStatusLabel(p)}</span>
-          ${p.status === 'në pritje' ? '<div class="sub-status">Dërguar te admin</div>' : ''}
+          ${p.status === 'në pritje' ? `<div class="sub-status">${t('landlord.sentToAdmin')}</div>` : ''}
           ${p.status === 'refuzuar' ? `<div class="sub-status">${p.rejectReason || ''}</div>` : ''}
         </div>
       </div>
       <div class="property-actions-row">
         ${contractAction}
-        <button class="btn btn-outline btn-sm edit-btn" data-id="${p.id}" ${occupied ? 'disabled' : ''}>${icons.edit} Modifiko</button>
-        <button class="btn btn-danger btn-sm delete-btn" data-id="${p.id}" ${occupied || reserved ? 'disabled' : ''}>${icons.trash} Fshi</button>
+        <button class="btn btn-outline btn-sm edit-btn" data-id="${p.id}" ${occupied ? 'disabled' : ''}>${icons.edit} ${t('common.edit')}</button>
+        <button class="btn btn-danger btn-sm delete-btn" data-id="${p.id}" ${occupied || reserved ? 'disabled' : ''}>${icons.trash} ${t('common.delete')}</button>
       </div>
     </div>`;
 }
@@ -108,12 +109,12 @@ export function renderLandlordHome() {
 
   return `
     <div class="welcome-section">
-      <h2>Mirësevini, ${getFirstName(user.fullName)}!</h2>
-      <p>Paneli i Qeradhënësit</p>
+      <h2>${t('welcome.greeting', { name: getFirstName(user.fullName) })}</h2>
+      <p>${t('welcome.landlord')}</p>
     </div>
     ${pendingRequests.length > 0 ? `
       <div class="profile-section" style="margin-bottom:1.5rem">
-        <h4>Kërkesat për Kontratë (${pendingRequests.length})</h4>
+        <h4>${t('landlord.contractRequests', { count: pendingRequests.length })}</h4>
         ${pendingRequests.map((req) => {
           const prop = data.properties.find((p) => p.id === req.propertyId);
           const tenant = data.users.find((u) => u.id === req.tenantId);
@@ -123,16 +124,16 @@ export function renderLandlordHome() {
                 <strong>${tenant?.fullName}</strong> — ${prop?.title}
                 <div class="request-meta">${formatDate(req.createdAt.slice(0, 10))}</div>
               </div>
-              <button class="btn btn-blue btn-sm contract-btn" data-id="${prop?.id}">Gjenero Kontratë</button>
+              <button class="btn btn-blue btn-sm contract-btn" data-id="${prop?.id}">${t('landlord.generateContract')}</button>
             </div>`;
         }).join('')}
       </div>` : ''}
     <div class="stats-row">
-      <div class="stat-card-colored blue"><div class="label">Total Pronash</div><div class="value">${stats.total}</div></div>
-      <div class="stat-card-colored green"><div class="label">Të Zëna</div><div class="value">${stats.occupied}</div><div class="sub">${stats.available} të lira</div></div>
-      <div class="stat-card-colored orange"><div class="label">Të Ardhura Mujore</div><div class="value">${formatCurrency(stats.monthlyIncome)}</div></div>
+      <div class="stat-card-colored blue"><div class="label">${t('landlord.totalProperties')}</div><div class="value">${stats.total}</div></div>
+      <div class="stat-card-colored green"><div class="label">${t('landlord.occupied')}</div><div class="value">${stats.occupied}</div><div class="sub">${t('landlord.freeCount', { count: stats.available })}</div></div>
+      <div class="stat-card-colored orange"><div class="label">${t('landlord.monthlyIncome')}</div><div class="value">${formatCurrency(stats.monthlyIncome)}</div></div>
     </div>
-    <button class="btn btn-primary btn-lg" id="add-property-btn" style="margin-bottom:1.5rem">+ Shto Banesë të Re</button>
+    <button class="btn btn-primary btn-lg" id="add-property-btn" style="margin-bottom:1.5rem">${t('landlord.addProperty')}</button>
     <div class="property-list">${properties.map(propertyRow).join('')}</div>`;
 }
 
@@ -143,31 +144,31 @@ export function renderTenantHome() {
 
   return `
     <div class="welcome-section">
-      <h2>Mirësevini, ${getFirstName(user.fullName)}!</h2>
-      <p>Paneli i Qeramarrësit</p>
+      <h2>${t('welcome.greeting', { name: getFirstName(user.fullName) })}</h2>
+      <p>${t('welcome.tenant')}</p>
     </div>
     ${pendingContracts.length > 0 ? `
       <div class="alert alert-warning" style="margin-bottom:1rem">
-        <strong>${pendingContracts.length} kontratë pret nënshkrimin tuaj!</strong>
-        <button class="btn btn-blue btn-sm" data-page="contract" style="margin-left:1rem">Shiko & Nënshkruaj</button>
+        <strong>${t('tenant.pendingContracts', { count: pendingContracts.length })}</strong>
+        <button class="btn btn-blue btn-sm" data-page="contract" style="margin-left:1rem">${t('tenant.viewSign')}</button>
       </div>` : ''}
     ${activeProperties.length > 0 ? `
       <div class="tenant-grid">
         ${activeProperties.map(({ property: p, contract, landlord }) => `
           <div class="tenant-apartment-card">
-            <div class="card-label">Banesa Ime</div>
+            <div class="card-label">${t('tenant.myApartment')}</div>
             <h3>${p.title}</h3>
             <div class="address">${icons.pin} ${p.address}</div>
-            <div class="price">${formatCurrency(p.rentPrice)}/muaj</div>
-            <div class="tenant-contact">Qeradhënës: ${landlord?.fullName} · ${landlord?.phone || ''}</div>
-            <div class="rent-card" style="margin-top:0.5rem"><div class="label">Kontrata Skadon</div><div class="value">${monthsUntil(contract.endDate)} muaj</div></div>
+            <div class="price">${formatCurrency(p.rentPrice)}${t('common.perMonth')}</div>
+            <div class="tenant-contact">${t('tenant.landlordContact', { name: landlord?.fullName, phone: landlord?.phone || '' })}</div>
+            <div class="rent-card" style="margin-top:0.5rem"><div class="label">${t('tenant.contractExpires')}</div><div class="value">${monthsUntil(contract.endDate)} ${t('common.months')}</div></div>
           </div>
         `).join('')}
-      </div>` : '<div class="empty-state"><p>Nuk keni banesë aktive.</p></div>'}
+      </div>` : `<div class="empty-state"><p>${t('tenant.noActive')}</p></div>`}
     <div class="action-cards-row">
-      <div class="action-card"><h3>Pagesat</h3><button class="btn btn-primary btn-sm" data-page="payments">Shiko</button></div>
-      <div class="action-card"><h3>Kontratat</h3><button class="btn btn-blue btn-sm" data-page="contract">Shiko</button></div>
-      <div class="action-card"><h3>Kërkim</h3><button class="btn btn-outline btn-sm" data-page="search">Kërko</button></div>
+      <div class="action-card"><h3>${t('tenant.paymentsCard')}</h3><button class="btn btn-primary btn-sm" data-page="payments">${t('common.view')}</button></div>
+      <div class="action-card"><h3>${t('tenant.contractsCard')}</h3><button class="btn btn-blue btn-sm" data-page="contract">${t('common.view')}</button></div>
+      <div class="action-card"><h3>${t('tenant.searchCard')}</h3><button class="btn btn-outline btn-sm" data-page="search">${t('common.search')}</button></div>
     </div>`;
 }
 
@@ -177,20 +178,20 @@ export function renderAdminHome() {
   const audit = getAuditLog(10);
 
   return `
-    <div class="welcome-section"><h2>Panel Admin</h2><p>Menaxhimi i platformës</p></div>
+    <div class="welcome-section"><h2>${t('page.admin')}</h2><p>${t('admin.subtitle')}</p></div>
     <div class="admin-stats">
-      <div class="admin-stat"><div class="label">Banesa</div><div class="value">${data.properties.length}</div></div>
-      <div class="admin-stat"><div class="label">Përdorues</div><div class="value">${data.users.length}</div></div>
-      <div class="admin-stat"><div class="label">Për Miratim</div><div class="value">${pending.length}</div></div>
+      <div class="admin-stat"><div class="label">${t('admin.properties')}</div><div class="value">${data.properties.length}</div></div>
+      <div class="admin-stat"><div class="label">${t('admin.users')}</div><div class="value">${data.users.length}</div></div>
+      <div class="admin-stat"><div class="label">${t('admin.pending')}</div><div class="value">${pending.length}</div></div>
     </div>
-    <button class="btn btn-primary" data-page="approvals" style="margin-bottom:1.5rem">Shqyrto Pronat (${pending.length})</button>
+    <button class="btn btn-primary" data-page="approvals" style="margin-bottom:1.5rem">${t('admin.reviewProperties', { count: pending.length })}</button>
     <div class="activity-feed">
-      <h4>Audit Log</h4>
+      <h4>${t('admin.auditLog')}</h4>
       ${audit.map((a) => `
         <div class="activity-item">
           <div class="title">${a.action}</div>
-          <div class="meta">${a.details} — ${new Date(a.timestamp).toLocaleString('sq-AL')}</div>
-        </div>`).join('') || '<p class="empty-state">Asnjë aktivitet.</p>'}
+          <div class="meta">${a.details} — ${formatLocaleString(a.timestamp)}</div>
+        </div>`).join('') || `<p class="empty-state">${t('admin.noActivity')}</p>`}
     </div>`;
 }
 
@@ -200,22 +201,51 @@ export function renderAdminApprovalsPage() {
 
   return `
     ${renderBackButton()}
-    <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1rem">Miratimi i Pronave</h2>
-    ${pending.length === 0 ? '<div class="empty-state"><p>Nuk ka prona në pritje.</p></div>' : pending.map((p) => {
+    <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1rem">${t('page.approvals')}</h2>
+    ${pending.length === 0 ? `<div class="empty-state"><p>${t('admin.noPending')}</p></div>` : pending.map((p) => {
       const owner = data.users.find((u) => u.id === p.ownerId);
       return `
         <div class="property-row" style="margin-bottom:1rem">
           <div class="property-info">
             <h3>${p.title}</h3>
-            <div>${p.address}, ${p.city} — ${formatCurrency(p.rentPrice)}/muaj</div>
-            <div class="sub-status">Qeradhënës: ${owner?.fullName}</div>
+            <div>${p.address}, ${p.city} — ${formatCurrency(p.rentPrice)}${t('common.perMonth')}</div>
+            <div class="sub-status">${t('common.landlord')}: ${owner?.fullName}</div>
           </div>
           <div class="property-actions-row">
-            <button class="btn btn-primary btn-sm approve-btn" data-id="${p.id}" data-action="approve">Mirato</button>
-            <button class="btn btn-danger btn-sm approve-btn" data-id="${p.id}" data-action="reject">Refuzo</button>
+            <button class="btn btn-primary btn-sm approve-btn" data-id="${p.id}" data-action="approve">${t('common.approve')}</button>
+            <button class="btn btn-danger btn-sm approve-btn" data-id="${p.id}" data-action="reject">${t('common.reject')}</button>
           </div>
         </div>`;
     }).join('')}`;
+}
+
+export function renderAdminUsersPage() {
+  const data = loadData();
+  const users = [...data.users].sort((a, b) => (a.fullName || '').localeCompare(b.fullName || '', 'sq'));
+
+  return `
+    ${renderBackButton()}
+    <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1rem">${t('page.users')}</h2>
+    ${users.length === 0 ? `<div class="empty-state"><p>${t('admin.noUsers')}</p></div>` : `
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>${t('common.name')}</th>
+              <th>${t('common.email')}</th>
+              <th>${t('common.role')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${users.map((u) => `
+              <tr>
+                <td>${u.fullName || '—'}</td>
+                <td>${u.email || '—'}</td>
+                <td><span class="user-role-badge">${getRoleLabel(u.role)}</span></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`}`;
 }
 
 export function renderNotificationsPage() {
@@ -224,12 +254,12 @@ export function renderNotificationsPage() {
 
   return `
     ${renderBackButton()}
-    <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1rem">Njoftimet</h2>
-    ${notes.length === 0 ? '<div class="empty-state"><p>Nuk ka njoftime.</p></div>' : notes.map((n) => `
+    <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1rem">${t('page.notifications')}</h2>
+    ${notes.length === 0 ? `<div class="empty-state"><p>${t('notifications.none')}</p></div>` : notes.map((n) => `
       <div class="activity-item ${n.read ? '' : 'unread'}" data-id="${n.id}">
         <div class="title">${n.type}</div>
         <div class="meta">${n.message}</div>
-        <div class="request-meta">${new Date(n.sentAt).toLocaleString('sq-AL')}</div>
+        <div class="request-meta">${formatLocaleString(n.sentAt)}</div>
       </div>`).join('')}`;
 }
 
@@ -243,35 +273,40 @@ export function renderProfilePage() {
     <div class="profile-section">
       <form id="profile-form">
         <div class="form-grid">
-          <div class="form-group"><label>Emri</label><input name="fullName" value="${user.fullName}" required /></div>
-          <div class="form-group"><label>Email</label><input name="email" type="email" value="${user.email}" required /></div>
-          <div class="form-group"><label>Telefon</label><input name="phone" value="${user.phone || ''}" /></div>
-          <div class="form-group"><label>Adresa</label><input name="address" value="${user.address || ''}" /></div>
+          <div class="form-group"><label>${t('common.name')}</label><input name="fullName" value="${user.fullName}" required /></div>
+          <div class="form-group"><label>${t('common.email')}</label><input name="email" type="email" value="${user.email}" required /></div>
+          <div class="form-group"><label>${t('common.phone')}</label><input name="phone" value="${user.phone || ''}" /></div>
+          <div class="form-group"><label>${t('common.address')}</label><input name="address" value="${user.address || ''}" /></div>
           ${user.role === 'qiramarrësi' ? `
-            <div class="form-group"><label>Lloji</label>
-              <select name="userType"><option value="student" ${user.userType === 'student' ? 'selected' : ''}>Student</option><option value="employed" ${user.userType === 'employed' ? 'selected' : ''}>I punësuar</option></select>
+            <div class="form-group"><label>${t('profile.userType')}</label>
+              <select name="userType"><option value="student" ${user.userType === 'student' ? 'selected' : ''}>${t('auth.student')}</option><option value="employed" ${user.userType === 'employed' ? 'selected' : ''}>${t('auth.employed')}</option></select>
             </div>
-            <div class="form-group"><label>Kampus</label>
+            <div class="form-group"><label>${t('profile.campus')}</label>
               <select name="campusId">${CAMPUSES.map((c) => `<option value="${c.id}" ${user.campusId === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}</select>
             </div>` : ''}
         </div>
-        <button type="submit" class="btn btn-primary" style="margin-top:1rem">Ruaj</button>
+        <button type="submit" class="btn btn-primary" style="margin-top:1rem">${t('common.save')}</button>
       </form>
     </div>
     <div class="profile-section">
       <form id="password-form">
         <div class="form-grid">
-          <div class="form-group"><label>Fjalëkalimi aktual</label><input name="currentPassword" type="password" /></div>
-          <div class="form-group"><label>Fjalëkalimi i ri</label><input name="newPassword" type="password" /></div>
-          <div class="form-group"><label>Konfirmo</label><input name="confirmPassword" type="password" /></div>
+          <div class="form-group"><label>${t('profile.currentPassword')}</label><input name="currentPassword" type="password" /></div>
+          <div class="form-group"><label>${t('profile.newPassword')}</label><input name="newPassword" type="password" /></div>
+          <div class="form-group"><label>${t('profile.confirmPassword')}</label><input name="confirmPassword" type="password" /></div>
         </div>
-        <button type="submit" class="btn btn-outline" style="margin-top:1rem">Ndrysho Fjalëkalimin</button>
+        <button type="submit" class="btn btn-outline" style="margin-top:1rem">${t('profile.changePassword')}</button>
       </form>
     </div>
     ${stats ? `<div class="profile-stats-grid">
-      <div class="stat-card-white"><div class="label">Prona</div><div class="value">${stats.total}</div></div>
-      <div class="stat-card-white"><div class="label">Aktive</div><div class="value">${stats.occupied}</div></div>
-    </div>` : ''}`;
+      <div class="stat-card-white"><div class="label">${t('profile.properties')}</div><div class="value">${stats.total}</div></div>
+      <div class="stat-card-white"><div class="label">${t('profile.active')}</div><div class="value">${stats.occupied}</div></div>
+    </div>` : ''}
+    <div class="profile-section profile-danger" style="margin-top:2rem;border-top:1px solid var(--border);padding-top:1.5rem">
+      <h3 style="margin-bottom:0.5rem;color:var(--danger)">${t('profile.deleteTitle')}</h3>
+      <p class="field-hint" style="margin-bottom:1rem">${t('profile.deleteHint')}</p>
+      <button type="button" class="btn btn-danger" id="delete-account-btn">${t('profile.deleteBtn')}</button>
+    </div>`;
 }
 
 export function renderAddPropertyPage(property = null) {
@@ -281,39 +316,39 @@ export function renderAddPropertyPage(property = null) {
   const photoRequired = !isEdit || !hasExistingPhotos;
 
   return `
-    ${renderBackButton('Kthehu', 'home')}
-    <h2>${isEdit ? 'Modifiko Banesën' : 'Shto Banesë të Re'}</h2>
-    <p class="field-hint" style="margin-bottom:1rem">Pronat e reja dërgohen te administratori për miratim (brenda 24 orëve).</p>
+    ${renderBackButton(undefined, 'home')}
+    <h2>${isEdit ? t('page.editProperty') : t('page.addProperty')}</h2>
+    <p class="field-hint" style="margin-bottom:1rem">${t('property.approvalHint')}</p>
     <form id="property-form">
       <div class="form-section">
         <div class="form-grid">
-          <div class="form-group full"><label>Titulli</label><input name="title" required value="${property?.title || ''}" /></div>
-          <div class="form-group"><label>Qyteti / Komuna</label>
+          <div class="form-group full"><label>${t('property.title')}</label><input name="title" required value="${property?.title || ''}" /></div>
+          <div class="form-group"><label>${t('property.city')}</label>
             <select name="city">${KOSOVO_CITIES.map((c) => `<option ${property?.city === c ? 'selected' : ''}>${c}</option>`).join('')}</select>
           </div>
-          <div class="form-group"><label>Lloji</label>
+          <div class="form-group"><label>${t('property.type')}</label>
             <select name="type">
-              <option value="apartament" ${property?.type === 'apartament' ? 'selected' : ''}>Apartament</option>
-              <option value="shtepi" ${property?.type === 'shtepi' ? 'selected' : ''}>Shtëpi</option>
-              <option value="studio" ${property?.type === 'studio' ? 'selected' : ''}>Studio</option>
+              <option value="apartament" ${property?.type === 'apartament' ? 'selected' : ''}>${t('property.type.apartament')}</option>
+              <option value="shtepi" ${property?.type === 'shtepi' ? 'selected' : ''}>${t('property.type.shtepi')}</option>
+              <option value="studio" ${property?.type === 'studio' ? 'selected' : ''}>${t('property.type.studio')}</option>
             </select>
           </div>
-          <div class="form-group full"><label>Adresa</label><input name="address" required value="${property?.address || ''}" /></div>
-          <div class="form-group"><label>Afër kampusit (opsionale)</label>
+          <div class="form-group full"><label>${t('common.address')}</label><input name="address" required value="${property?.address || ''}" /></div>
+          <div class="form-group"><label>${t('property.nearCampus')}</label>
             <select name="nearCampus">
               <option value="">—</option>
               ${CAMPUSES.map((c) => `<option value="${c.id}" ${property?.nearCampus === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
             </select>
           </div>
-          <div class="form-group"><label>Dhoma</label><input name="rooms" type="number" min="1" required value="${property?.rooms || ''}" /></div>
-          <div class="form-group"><label>Banjë</label><input name="bathrooms" type="number" min="1" required value="${property?.bathrooms || ''}" /></div>
-          <div class="form-group"><label>Sipërfaqja m²</label><input name="area" type="number" min="1" required value="${property?.area || ''}" /></div>
-          <div class="form-group"><label>Qera €/muaj</label><input name="rentPrice" type="number" min="1" required value="${property?.rentPrice || ''}" /></div>
-          <div class="form-group"><label>Depozita €</label><input name="deposit" type="number" min="0" value="${property?.deposit || ''}" /></div>
-          <div class="form-group full"><label>Përshkrimi</label><textarea name="description" rows="3">${property?.description || ''}</textarea></div>
+          <div class="form-group"><label>${t('property.rooms')}</label><input name="rooms" type="number" min="1" required value="${property?.rooms || ''}" /></div>
+          <div class="form-group"><label>${t('property.bathrooms')}</label><input name="bathrooms" type="number" min="1" required value="${property?.bathrooms || ''}" /></div>
+          <div class="form-group"><label>${t('property.area')}</label><input name="area" type="number" min="1" required value="${property?.area || ''}" /></div>
+          <div class="form-group"><label>${t('property.rent')}</label><input name="rentPrice" type="number" min="1" required value="${property?.rentPrice || ''}" /></div>
+          <div class="form-group"><label>${t('property.deposit')}</label><input name="deposit" type="number" min="0" value="${property?.deposit || ''}" /></div>
+          <div class="form-group full"><label>${t('property.description')}</label><textarea name="description" rows="3">${property?.description || ''}</textarea></div>
           <div class="form-group full">
-            <label>Foto <span class="required-mark">*</span> (min 1, max 5, 5MB secila)</label>
-            <p class="field-hint">Prona nuk mund të publikohet pa të paktën një foto.</p>
+            <label>${t('property.photos')} <span class="required-mark">*</span> (min 1, max 5, 5MB)</label>
+            <p class="field-hint">${t('property.photosHint')}</p>
             ${hasExistingPhotos ? `
               <div class="existing-photos-preview">
                 ${property.photos.map((ph) => {
@@ -321,18 +356,18 @@ export function renderAddPropertyPage(property = null) {
                   return src ? `<img src="${src}" alt="${ph.name || ''}" class="photo-preview-thumb" />` : '';
                 }).join('')}
               </div>
-              <p class="field-hint">Foto aktuale (${property.photos.length}). Ngarkoni foto shtesë (deri në 5 gjithsej) ose lëreni bosh për t'i mbajtur ato aktuale.</p>
+              <p class="field-hint">${t('property.photosExisting', { count: property.photos.length })}</p>
             ` : ''}
             <input type="file" name="photos" accept="image/*" multiple ${photoRequired ? 'required' : ''} />
           </div>
         </div>
-        <h4 style="margin-top:1rem">Komoditete</h4>
+        <h4 style="margin-top:1rem">${t('property.amenities')}</h4>
         <div class="amenities-grid">
-          ${[['mobiluar', 'Mobiluar'], ['ngrohje', 'Ngrohje'], ['ac', 'AC'], ['parking', 'Parking'], ['ballkon', 'Ballkon'], ['ashensor', 'Ashensor']].map(([k, l]) => `
-            <label class="amenity-item"><input type="checkbox" name="amenity_${k}" ${a[k] ? 'checked' : ''} /> ${l}</label>`).join('')}
+          ${[['mobiluar', 'property.amenity.mobiluar'], ['ngrohje', 'property.amenity.ngrohje'], ['ac', 'property.amenity.ac'], ['parking', 'property.amenity.parking'], ['ballkon', 'property.amenity.ballkon'], ['ashensor', 'property.amenity.ashensor']].map(([k, labelKey]) => `
+            <label class="amenity-item"><input type="checkbox" name="amenity_${k}" ${a[k] ? 'checked' : ''} /> ${t(labelKey)}</label>`).join('')}
         </div>
       </div>
-      <button type="submit" class="btn btn-primary btn-lg btn-block">${isEdit ? 'Ruaj (kërkon miratim)' : 'Dërgo për Miratim'}</button>
+      <button type="submit" class="btn btn-primary btn-lg btn-block">${isEdit ? t('property.saveApproval') : t('property.submitApproval')}</button>
     </form>`;
 }
 
@@ -355,12 +390,12 @@ export function renderSearchPage(searchState = {}) {
           <h3>${p.title}</h3>
           <div class="address">${icons.pin} ${p.address}</div>
           <div class="specs">${propertySpecs(p)}</div>
-          ${p.nearCampus ? `<div class="sub-status">Afër ${getCampusName(p.nearCampus)}</div>` : ''}
-          <div class="price">${formatCurrency(p.rentPrice)}/muaj</div>
+          ${p.nearCampus ? `<div class="sub-status">${t('common.near')} ${getCampusName(p.nearCampus)}</div>` : ''}
+          <div class="price">${formatCurrency(p.rentPrice)}${t('common.perMonth')}</div>
           <div class="card-actions">
-            <button class="btn btn-outline btn-sm favorite-btn" data-id="${p.id}">${fav ? '★ Heq' : '☆ Ruaj'}</button>
+            <button class="btn btn-outline btn-sm favorite-btn" data-id="${p.id}">${fav ? t('search.unsave') : t('search.save')}</button>
             <button class="btn ${pending ? 'btn-outline' : 'btn-primary'} btn-sm request-contract-btn" data-id="${p.id}" ${pending ? 'disabled' : ''}>
-              ${pending ? 'Kërkesa dërguar' : 'Kërko Kontratë'}
+              ${pending ? t('search.requestSent') : t('search.requestContract')}
             </button>
           </div>
         </div>
@@ -369,33 +404,33 @@ export function renderSearchPage(searchState = {}) {
 
   return `
     ${renderBackButton()}
-    <h2>Kërko Banesa</h2>
+    <h2>${t('page.search')}</h2>
     <div class="search-filters">
       <div class="form-grid">
-        <div class="form-group"><label>Qyteti / Komuna</label><select id="filter-city"><option value="">Të gjitha (gjithë Kosova)</option>${KOSOVO_CITIES.map((c) => `<option value="${c}" ${filters.city === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
-        <div class="form-group"><label>Tipi</label><select id="filter-type"><option value="">Të gjitha</option><option value="apartament">Apartament</option><option value="studio">Studio</option><option value="shtepi">Shtëpi</option></select></div>
-        <div class="form-group"><label>Çmim max €</label><input id="filter-max-price" type="number" min="0" placeholder="500" value="${filters.maxPrice || ''}" /></div>
-        <div class="form-group"><label>Dhoma min</label><input id="filter-min-rooms" type="number" min="1" value="${filters.minRooms || ''}" /></div>
-        <div class="form-group"><label>Sipërfaqja min m²</label><input id="filter-min-area" type="number" min="0" value="${filters.minArea || ''}" /></div>
-        <div class="form-group"><label>Afër kampusit</label><select id="filter-campus"><option value="">—</option>${CAMPUSES.map((c) => `<option value="${c.id}">${c.name}</option>`).join('')}</select></div>
-        <div class="form-group form-group--checkbox full"><label class="checkbox-label" for="filter-mobiluar"><input type="checkbox" id="filter-mobiluar" ${filters.mobiluar ? 'checked' : ''} /><span>Mobiluar</span></label></div>
+        <div class="form-group"><label>${t('property.city')}</label><select id="filter-city"><option value="">${t('search.allKosovo')}</option>${KOSOVO_CITIES.map((c) => `<option value="${c}" ${filters.city === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+        <div class="form-group"><label>${t('property.type')}</label><select id="filter-type"><option value="">${t('common.all')}</option><option value="apartament">${t('property.type.apartament')}</option><option value="studio">${t('property.type.studio')}</option><option value="shtepi">${t('property.type.shtepi')}</option></select></div>
+        <div class="form-group"><label>${t('search.maxPrice')}</label><input id="filter-max-price" type="number" min="0" placeholder="500" value="${filters.maxPrice || ''}" /></div>
+        <div class="form-group"><label>${t('search.minRooms')}</label><input id="filter-min-rooms" type="number" min="1" value="${filters.minRooms || ''}" /></div>
+        <div class="form-group"><label>${t('search.minArea')}</label><input id="filter-min-area" type="number" min="0" value="${filters.minArea || ''}" /></div>
+        <div class="form-group"><label>${t('search.nearCampus')}</label><select id="filter-campus"><option value="">—</option>${CAMPUSES.map((c) => `<option value="${c.id}">${c.name}</option>`).join('')}</select></div>
+        <div class="form-group form-group--checkbox full"><label class="checkbox-label" for="filter-mobiluar"><input type="checkbox" id="filter-mobiluar" ${filters.mobiluar ? 'checked' : ''} /><span>${t('property.amenity.mobiluar')}</span></label></div>
       </div>
       <div class="search-filter-actions">
-        <button class="btn btn-primary" id="search-btn">Kërko</button>
-        <button class="btn btn-outline" id="agency-btn">Kërko ndihmë nga agjencia</button>
+        <button class="btn btn-primary" id="search-btn">${t('common.search')}</button>
+        <button class="btn btn-outline" id="agency-btn">${t('search.agencyHelp')}</button>
       </div>
     </div>
-    <div id="search-meta" style="margin:1rem 0;color:var(--text-muted)">${result.total} rezultate · Faqja ${result.page}/${result.totalPages}</div>
+    <div id="search-meta" style="margin:1rem 0;color:var(--text-muted)">${result.total} ${t('common.results')} · ${t('common.page')} ${result.page}/${result.totalPages}</div>
     <div id="search-results" class="search-results-grid">
       ${result.items.length === 0
-        ? '<div class="empty-state full-width"><p>Nuk u gjet asnjë banesë. Provoni filtra alternative (zgjeroni lokacionin ose buxhetin).</p></div>'
+        ? `<div class="empty-state full-width"><p>${t('search.noResults')}</p></div>`
         : result.items.map(card).join('')}
     </div>
     ${result.totalPages > 1 ? `
       <div class="pagination">
-        <button class="btn btn-outline btn-sm" id="prev-page" ${page <= 1 ? 'disabled' : ''}>← Para</button>
-        <span>Faqja ${page} / ${result.totalPages}</span>
-        <button class="btn btn-outline btn-sm" id="next-page" ${page >= result.totalPages ? 'disabled' : ''}>Tjetra →</button>
+        <button class="btn btn-outline btn-sm" id="prev-page" ${page <= 1 ? 'disabled' : ''}>${t('common.previous')}</button>
+        <span>${t('common.page')} ${page} / ${result.totalPages}</span>
+        <button class="btn btn-outline btn-sm" id="next-page" ${page >= result.totalPages ? 'disabled' : ''}>${t('common.next')}</button>
       </div>` : ''}`;
 }
 
@@ -405,14 +440,14 @@ export function renderFavoritesPage() {
 
   return `
     ${renderBackButton()}
-    <h2>Të Preferuarat</h2>
-    ${favs.length === 0 ? '<div class="empty-state"><p>Nuk keni banesa të ruajtura.</p><button class="btn btn-primary" data-page="search">Kërko Banesa</button></div>' : `
+    <h2>${t('page.favorites')}</h2>
+    ${favs.length === 0 ? `<div class="empty-state"><p>${t('search.noFavorites')}</p><button class="btn btn-primary" data-page="search">${t('page.search')}</button></div>` : `
       <div class="search-results-grid">${favs.map((p) => `
         <div class="search-result-card">
           <h3>${p.title}</h3>
           <div>${p.address}</div>
-          <div class="price">${formatCurrency(p.rentPrice)}/muaj</div>
-          <button class="btn btn-outline btn-sm favorite-btn" data-id="${p.id}">Heq nga lista</button>
+          <div class="price">${formatCurrency(p.rentPrice)}${t('common.perMonth')}</div>
+          <button class="btn btn-outline btn-sm favorite-btn" data-id="${p.id}">${t('search.removeFromList')}</button>
         </div>`).join('')}</div>`}`;
 }
 
@@ -423,38 +458,38 @@ export function renderPaymentsPage(period = {}) {
 
   return `
     ${renderBackButton()}
-    <h2>Pagesat e Banesës</h2>
+    <h2>${t('page.payments')}</h2>
     <div class="form-grid" style="margin-bottom:1rem">
-      <div class="form-group"><label>Nga data</label><input type="date" id="period-from" value="${period.from || ''}" /></div>
-      <div class="form-group"><label>Deri data</label><input type="date" id="period-to" value="${period.to || ''}" /></div>
-      <div class="form-group" style="display:flex;align-items:flex-end"><button class="btn btn-outline btn-sm" id="filter-period">Filtro</button></div>
+      <div class="form-group"><label>${t('common.from')}</label><input type="date" id="period-from" value="${period.from || ''}" /></div>
+      <div class="form-group"><label>${t('common.to')}</label><input type="date" id="period-to" value="${period.to || ''}" /></div>
+      <div class="form-group" style="display:flex;align-items:flex-end"><button class="btn btn-outline btn-sm" id="filter-period">${t('common.filter')}</button></div>
     </div>
     <div class="stats-row" style="margin-bottom:1rem">
-      <div class="stat-card-white"><div class="label">Total</div><div class="value">${formatCurrency(report.total)}</div></div>
-      <div class="stat-card-white"><div class="label">Paguar</div><div class="value">${formatCurrency(report.paid)}</div></div>
-      <div class="stat-card-white"><div class="label">E vonuar</div><div class="value">${formatCurrency(report.overdue)}</div></div>
+      <div class="stat-card-white"><div class="label">${t('common.total')}</div><div class="value">${formatCurrency(report.total)}</div></div>
+      <div class="stat-card-white"><div class="label">${t('common.paid')}</div><div class="value">${formatCurrency(report.paid)}</div></div>
+      <div class="stat-card-white"><div class="label">${t('common.overdue')}</div><div class="value">${formatCurrency(report.overdue)}</div></div>
     </div>
-    <button class="btn btn-outline btn-sm" id="export-payments-pdf" style="margin-bottom:1rem">Shkarko PDF</button>
-    ${payments.length === 0 ? '<div class="empty-state"><p>Nuk ka shpenzime për këtë periudhë.</p></div>' : `
+    <button class="btn btn-outline btn-sm" id="export-payments-pdf" style="margin-bottom:1rem">${t('payments.downloadPdf')}</button>
+    ${payments.length === 0 ? `<div class="empty-state"><p>${t('payments.noExpenses')}</p></div>` : `
       <div class="table-responsive">
       <table>
-        <thead><tr><th>Data</th><th>Lloji</th><th>Shuma</th><th>Statusi</th><th>Veprime</th></tr></thead>
+        <thead><tr><th>${t('common.date')}</th><th>${t('common.type')}</th><th>${t('common.amount')}</th><th>${t('common.status')}</th><th>${t('common.actions')}</th></tr></thead>
         <tbody>${payments.map((p) => `
           <tr>
             <td>${formatDate(p.dueDate)}</td>
             <td>${getExpenseTypeLabel(p.type)}</td>
             <td>${formatCurrency(p.amount)}</td>
-            <td><span class="status-badge ${statusBadgeClass(p.status)}">${getPaymentStatusLabel(p.status)}</span>${p.proof ? ' <span class="sub-status">📎 dëshmi</span>' : ''}</td>
+            <td><span class="status-badge ${statusBadgeClass(p.status)}">${getPaymentStatusLabel(p.status)}</span>${p.proof ? ` <span class="sub-status">📎 ${t('common.proof')}</span>` : ''}</td>
             <td>
-              ${user.role === 'qiramarrësi' && ['pending', 'overdue'].includes(p.status) ? `<button class="btn btn-primary btn-sm pay-btn" data-id="${p.id}">Ngarko Dëshmi & Paguaj</button>` : ''}
-              ${user.role === 'qiramarrësi' && p.status === 'nën_shqyrtim' ? `<span class="sub-status">Në shqyrtim nga qeradhënësi…</span>` : ''}
-              ${user.role === 'qiramarrësi' && p.status === 'pending' ? `<button class="btn btn-outline btn-sm dispute-btn" data-id="${p.id}">Ankim</button>` : ''}
-              ${user.role === 'qiradhënësi' && ['pending', 'overdue'].includes(p.status) ? `<button class="btn btn-outline btn-sm confirm-cash-btn" data-id="${p.id}">Konfirmo Pagesë Cash</button>` : ''}
-              ${user.role === 'qiradhënësi' && p.status === 'disputed' ? `<button class="btn btn-sm resolve-btn" data-id="${p.id}">Zgjidh</button>` : ''}
+              ${user.role === 'qiramarrësi' && ['pending', 'overdue'].includes(p.status) ? `<button class="btn btn-primary btn-sm pay-btn" data-id="${p.id}">${t('payments.uploadProof')}</button>` : ''}
+              ${user.role === 'qiramarrësi' && p.status === 'nën_shqyrtim' ? `<span class="sub-status">${t('payments.underReview')}</span>` : ''}
+              ${user.role === 'qiramarrësi' && p.status === 'pending' ? `<button class="btn btn-outline btn-sm dispute-btn" data-id="${p.id}">${t('payments.dispute')}</button>` : ''}
+              ${user.role === 'qiradhënësi' && ['pending', 'overdue'].includes(p.status) ? `<button class="btn btn-outline btn-sm confirm-cash-btn" data-id="${p.id}">${t('payments.confirmCash')}</button>` : ''}
+              ${user.role === 'qiradhënësi' && p.status === 'disputed' ? `<button class="btn btn-sm resolve-btn" data-id="${p.id}">${t('payments.resolve')}</button>` : ''}
               ${user.role === 'qiradhënësi' && p.status === 'nën_shqyrtim' ? `
-                <button class="btn btn-primary btn-sm review-approve-btn" data-id="${p.id}">✓ Mirato</button>
-                <button class="btn btn-outline btn-sm review-reject-btn" data-id="${p.id}">✗ Refuzo</button>
-                ${p.proof ? `<a href="${p.proof.dataUrl}" target="_blank" class="btn btn-outline btn-sm">Shiko Dëshmi</a>` : ''}` : ''}
+                <button class="btn btn-primary btn-sm review-approve-btn" data-id="${p.id}">✓ ${t('common.approve')}</button>
+                <button class="btn btn-outline btn-sm review-reject-btn" data-id="${p.id}">✗ ${t('common.reject')}</button>
+                ${p.proof ? `<a href="${p.proof.dataUrl}" target="_blank" class="btn btn-outline btn-sm">${t('payments.viewProof')}</a>` : ''}` : ''}
             </td>
           </tr>`).join('')}
         </tbody>
@@ -467,16 +502,16 @@ export function showPaymentProofModal(container, payment, onSubmit) {
   modal.className = 'modal-overlay';
   modal.innerHTML = `
     <div class="modal">
-      <div class="modal-header"><h3>Dëshmi Pagese</h3><button class="modal-close">&times;</button></div>
+      <div class="modal-header"><h3>${t('modal.proofTitle')}</h3><button class="modal-close">&times;</button></div>
       <div class="modal-body">
-        <p class="field-hint">Ngarkoni foton/PDF-në e dëshmisë së pagesës (fatura, transferta bankare, etj). Sistemi do ta verifikojë automatikisht nëse dëshmia është adekuate; përndryshe do t'i dërgohet qeradhënësit për shqyrtim.</p>
-        <div class="form-group"><label>Shuma: ${formatCurrency(payment.amount)} — ${getExpenseTypeLabel(payment.type)}</label></div>
+        <p class="field-hint">${t('modal.proofHint')}</p>
+        <div class="form-group"><label>${t('common.amount')}: ${formatCurrency(payment.amount)} — ${getExpenseTypeLabel(payment.type)}</label></div>
         <div class="form-group"><input type="file" id="proof-file" accept="image/*,application/pdf" required /></div>
         <div id="proof-error" class="alert alert-warning" style="display:none;margin-top:0.5rem"></div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-outline modal-cancel">Anulo</button>
-        <button type="button" class="btn btn-primary" id="submit-proof-btn">Dërgo Dëshminë</button>
+        <button type="button" class="btn btn-outline modal-cancel">${t('common.cancel')}</button>
+        <button type="button" class="btn btn-primary" id="submit-proof-btn">${t('modal.submitProof')}</button>
       </div>
     </div>`;
   container.appendChild(modal);
@@ -489,7 +524,7 @@ export function showPaymentProofModal(container, payment, onSubmit) {
     const file = fileInput.files[0];
     const errBox = modal.querySelector('#proof-error');
     if (!file) {
-      errBox.textContent = 'Zgjidhni një skedar.';
+      errBox.textContent = t('modal.selectFile');
       errBox.style.display = 'block';
       return;
     }
@@ -510,22 +545,22 @@ export function renderLandlordExpensesPage() {
 
   return `
     ${renderBackButton()}
-    <h2>Menaxho Shpenzimet</h2>
-    <p class="field-hint">Shtoni shpenzime mujore: rrymë, ujë, termokos, etj.</p>
+    <h2>${t('page.expenses')}</h2>
+    <p class="field-hint">${t('expense.hint')}</p>
     <form id="expense-form" class="profile-section">
       <div class="form-grid">
-        <div class="form-group"><label>Prona</label>
+        <div class="form-group"><label>${t('expense.property')}</label>
           <select name="propertyId" required>${props.map((p) => `<option value="${p.id}">${p.title}</option>`).join('')}</select>
         </div>
-        <div class="form-group"><label>Lloji</label>
-          <select name="type">${EXPENSE_TYPES.filter((t) => t.id !== 'qera').map((t) => `<option value="${t.id}">${t.label}</option>`).join('')}</select>
+        <div class="form-group"><label>${t('common.type')}</label>
+          <select name="type">${EXPENSE_TYPES.filter((et) => et.id !== 'qera').map((et) => `<option value="${et.id}">${t(`expenseType.${et.id}`)}</option>`).join('')}</select>
         </div>
-        <div class="form-group"><label>Shuma €</label><input name="amount" type="number" min="1" required /></div>
-        <div class="form-group"><label>Muaji</label><input name="month" type="month" required /></div>
+        <div class="form-group"><label>${t('common.amount')} €</label><input name="amount" type="number" min="1" required /></div>
+        <div class="form-group"><label>${t('expense.month')}</label><input name="month" type="month" required /></div>
       </div>
-      <button type="submit" class="btn btn-primary" style="margin-top:1rem">Shto Shpenzim</button>
+      <button type="submit" class="btn btn-primary" style="margin-top:1rem">${t('expense.add')}</button>
     </form>
-    <button class="btn btn-outline" data-page="payments" style="margin-top:1rem">Shiko të gjitha pagesat</button>`;
+    <button class="btn btn-outline" data-page="payments" style="margin-top:1rem">${t('expense.viewAll')}</button>`;
 }
 
 export function renderContractPage() {
@@ -534,7 +569,7 @@ export function renderContractPage() {
   const pending = getPendingContractsForTenant(user.id);
   const data = loadData();
 
-  let html = `${renderBackButton()}<h2>Kontratat</h2>`;
+  let html = `${renderBackButton()}<h2>${t('page.contract')}</h2>`;
 
   if (pending.length > 0) {
     html += pending.map((c) => {
@@ -542,16 +577,16 @@ export function renderContractPage() {
       const landlord = data.users.find((u) => u.id === c.landlordId);
       return `
         <div class="contract-preview pending-contract" data-id="${c.id}" style="margin-bottom:1.5rem;border:2px solid var(--primary)">
-          <strong>KONTRATË PËR NËNSHKRIM</strong><br/><br/>
-          Mes: <strong>${landlord?.fullName}</strong> (Qeradhënës) dhe <strong>${user.fullName}</strong> (Qeramarrës)<br/><br/>
-          Objekti: ${p?.title} — ${p?.address}<br/>
-          Qera: ${formatCurrency(p?.rentPrice)}/muaj<br/>
-          Periudha: ${formatDate(c.startDate)} — ${formatDate(c.endDate)}<br/>
-          Status: ${getContractStatusLabel(c.status)}<br/>
+          <strong>${t('contract.pendingTitle')}</strong><br/><br/>
+          ${t('contract.between', { landlord: landlord?.fullName, tenant: user.fullName })}<br/><br/>
+          ${t('contract.object', { title: p?.title, address: p?.address })}<br/>
+          ${t('contract.rent', { amount: formatCurrency(p?.rentPrice) })}<br/>
+          ${t('contract.period', { start: formatDate(c.startDate), end: formatDate(c.endDate) })}<br/>
+          ${t('contract.status', { status: getContractStatusLabel(c.status) })}<br/>
           <div style="margin-top:1rem;display:flex;gap:0.5rem;flex-wrap:wrap">
-            <button class="btn btn-blue sign-accept-btn" data-id="${c.id}">✓ Nënshkruaj Digjitalisht</button>
-            <button class="btn btn-danger sign-reject-btn" data-id="${c.id}">✗ Refuzoj</button>
-            <button class="btn btn-outline download-pending-btn" data-id="${c.id}">Shkarko PDF</button>
+            <button class="btn btn-blue sign-accept-btn" data-id="${c.id}">${t('contract.signDigital')}</button>
+            <button class="btn btn-danger sign-reject-btn" data-id="${c.id}">${t('contract.reject')}</button>
+            <button class="btn btn-outline download-pending-btn" data-id="${c.id}">${t('contract.downloadPdf')}</button>
           </div>
         </div>`;
     }).join('');
@@ -560,17 +595,17 @@ export function renderContractPage() {
   if (activeProperties.length > 0) {
     html += activeProperties.map(({ contract, property, landlord }) => `
       <div class="contract-preview" style="margin-bottom:1.5rem">
-        <strong>KONTRATË AKTIVE</strong><br/><br/>
-        Mes: <strong>${landlord?.fullName}</strong> (Qeradhënës) dhe <strong>${user.fullName}</strong> (Qeramarrës)<br/><br/>
+        <strong>${t('contract.activeTitle')}</strong><br/><br/>
+        ${t('contract.between', { landlord: landlord?.fullName, tenant: user.fullName })}<br/><br/>
         ${property.title} — ${property.address}<br/>
-        Qera: ${formatCurrency(property.rentPrice)}<br/>
-        Periudha: ${formatDate(contract.startDate)} — ${formatDate(contract.endDate)}<br/>
-        Status: ${getContractStatusLabel(contract.status)}<br/>
-        ${contract.signature ? `<div class="sub-status">✓ Nënshkruar elektronikisht më ${new Date(contract.signedAt).toLocaleDateString('sq-AL')}</div>` : ''}
-        <button class="btn btn-blue download-contract-btn" style="margin-top:1rem" data-id="${contract.id}">Shkarko PDF</button>
+        ${t('contract.rent', { amount: formatCurrency(property.rentPrice) })}<br/>
+        ${t('contract.period', { start: formatDate(contract.startDate), end: formatDate(contract.endDate) })}<br/>
+        ${t('contract.status', { status: getContractStatusLabel(contract.status) })}<br/>
+        ${contract.signature ? `<div class="sub-status">${t('contract.signedOn', { date: formatLocaleDate(contract.signedAt) })}</div>` : ''}
+        <button class="btn btn-blue download-contract-btn" style="margin-top:1rem" data-id="${contract.id}">${t('contract.downloadPdf')}</button>
       </div>`).join('');
   } else if (pending.length === 0) {
-    html += '<div class="empty-state"><p>Nuk keni kontratë aktive.</p></div>';
+    html += `<div class="empty-state"><p>${t('contract.noActive')}</p></div>`;
   }
 
   return html;
@@ -581,17 +616,17 @@ export function showSignatureModal(container, contract, onSign) {
   modal.className = 'modal-overlay';
   modal.innerHTML = `
     <div class="modal">
-      <div class="modal-header"><h3>Nënshkrimi Digjital i Kontratës</h3><button class="modal-close">&times;</button></div>
+      <div class="modal-header"><h3>${t('modal.signatureTitle')}</h3><button class="modal-close">&times;</button></div>
       <div class="modal-body">
-        <p class="field-hint">Vizatoni nënshkrimin tuaj më poshtë, ose shkruani emrin tuaj të plotë si nënshkrim.</p>
+        <p class="field-hint">${t('modal.signatureHint')}</p>
         <canvas id="signature-canvas" width="400" height="150" style="border:2px dashed var(--border);border-radius:8px;width:100%;max-width:400px;touch-action:none;cursor:crosshair;background:#fff"></canvas>
-        <div style="margin-top:0.5rem"><button type="button" class="btn btn-outline btn-sm" id="clear-signature">Pastro</button></div>
-        <div class="form-group" style="margin-top:1rem"><label>OSE shkruani emrin e plotë (nënshkrim i shtypur)</label><input id="typed-signature" placeholder="Emri Mbiemri" /></div>
-        <label style="display:flex;align-items:center;gap:0.5rem;margin-top:1rem"><input type="checkbox" id="signature-consent" /> Konfirmoj se ky është nënshkrimi im elektronik dhe pranoj kushtet e kontratës.</label>
+        <div style="margin-top:0.5rem"><button type="button" class="btn btn-outline btn-sm" id="clear-signature">${t('modal.clearSignature')}</button></div>
+        <div class="form-group" style="margin-top:1rem"><label>${t('modal.typedSignature')}</label><input id="typed-signature" placeholder="${t('modal.signaturePlaceholder')}" /></div>
+        <label style="display:flex;align-items:center;gap:0.5rem;margin-top:1rem"><input type="checkbox" id="signature-consent" /> ${t('modal.signatureConsent')}</label>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-outline modal-cancel">Anulo</button>
-        <button type="button" class="btn btn-blue" id="confirm-sign-btn">✓ Nënshkruaj & Aktivizo</button>
+        <button type="button" class="btn btn-outline modal-cancel">${t('common.cancel')}</button>
+        <button type="button" class="btn btn-blue" id="confirm-sign-btn">${t('modal.signActivate')}</button>
       </div>
     </div>`;
   container.appendChild(modal);
@@ -607,7 +642,7 @@ export function showSignatureModal(container, contract, onSign) {
 
     modal.querySelector('#confirm-sign-btn').onclick = () => {
       if (!modal.querySelector('#signature-consent').checked) {
-        alert('Duhet të konfirmoni pranimin e kushteve për të vazhduar.');
+        alert(t('alert.consentRequired'));
         return;
       }
       const typedName = modal.querySelector('#typed-signature').value.trim();
@@ -617,7 +652,7 @@ export function showSignatureModal(container, contract, onSign) {
           ? { dataUrl: null, typedName }
           : null;
       if (!signature) {
-        alert('Vizatoni nënshkrimin ose shkruani emrin tuaj të plotë.');
+        alert(t('alert.signatureRequired'));
         return;
       }
       onSign(signature);
@@ -630,7 +665,7 @@ export function showContractModal(container, property, onCreate) {
   const data = loadData();
   const pendingRequests = getPendingRequestsForProperty(property.id);
   if (pendingRequests.length === 0) {
-    alert('Nuk ka kërkesa nga qeramarrësit.');
+    alert(t('alert.noTenantRequests'));
     return;
   }
 
@@ -638,10 +673,10 @@ export function showContractModal(container, property, onCreate) {
   modal.className = 'modal-overlay';
   modal.innerHTML = `
     <div class="modal">
-      <div class="modal-header"><h3>Gjenero Kontratë — ${property.title}</h3><button class="modal-close">&times;</button></div>
+      <div class="modal-header"><h3>${t('modal.generateContract', { title: property.title })}</h3><button class="modal-close">&times;</button></div>
       <form id="contract-form">
         <div class="modal-body">
-          <div class="form-group"><label>Qeramarrësi</label>
+          <div class="form-group"><label>${t('modal.tenantSelect')}</label>
             <select name="requestId" required>
               ${pendingRequests.map((req) => {
                 const tenant = data.users.find((u) => u.id === req.tenantId);
@@ -649,12 +684,12 @@ export function showContractModal(container, property, onCreate) {
               }).join('')}
             </select>
           </div>
-          <div class="form-group"><label>Fillimi</label><input name="startDate" type="date" required /></div>
-          <div class="form-group"><label>Mbarimi</label><input name="endDate" type="date" required /></div>
+          <div class="form-group"><label>${t('modal.startDate')}</label><input name="startDate" type="date" required /></div>
+          <div class="form-group"><label>${t('modal.endDate')}</label><input name="endDate" type="date" required /></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline modal-cancel">Anulo</button>
-          <button type="submit" class="btn btn-blue">Gjenero PDF & Dërgo</button>
+          <button type="button" class="btn btn-outline modal-cancel">${t('common.cancel')}</button>
+          <button type="submit" class="btn btn-blue">${t('modal.generateSend')}</button>
         </div>
       </form>
     </div>`;

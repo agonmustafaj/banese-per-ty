@@ -255,6 +255,25 @@ export async function updateProfileSupabase(userId, updates) {
   return profileToUser(data);
 }
 
+export async function clearAuditLogSupabase() {
+  const supabase = getSupabase();
+  const { error } = await supabase.rpc('clear_audit_log');
+  if (error) throw error;
+}
+
+export async function fetchAllProfiles() {
+  const supabase = getSupabase();
+  const { data, error } = await supabase.from('profiles').select('*').order('full_name');
+  if (error) throw error;
+  return (data || []).map(profileToUser);
+}
+
+export async function deleteOwnAccountSupabase() {
+  const supabase = getSupabase();
+  const { error } = await supabase.rpc('delete_own_account');
+  if (error) throw error;
+}
+
 export function subscribeNotifications(userId, onInsert) {
   const supabase = getSupabase();
   if (!supabase || !userId) return () => {};

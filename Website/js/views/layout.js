@@ -5,8 +5,10 @@ import {
 } from '../auth.js';
 import { getRoleLabel } from '../data.js';
 import { icons } from '../icons.js';
+import { parseAppUrl, resolvePageAfterAuth } from '../nav.js';
+import { t, renderLangSwitchHtml, attachLangSwitch } from '../i18n.js';
 
-export function renderLogin(onNavigate) {
+export function renderLogin(onNavigate, onLangChange) {
   let mode = 'login';
   let selectedRole = 'qiradhënësi';
   let selectedUserType = 'employed';
@@ -14,10 +16,10 @@ export function renderLogin(onNavigate) {
   function roleSelectorHtml() {
     return `
       <div class="form-group">
-        <label>Roli i llogarisë</label>
+        <label>${t('auth.accountRole')}</label>
         <div class="role-selector" id="role-selector">
-          <div class="role-option ${selectedRole === 'qiradhënësi' ? 'active' : ''}" data-role="qiradhënësi">Qeradhënës</div>
-          <div class="role-option ${selectedRole === 'qiramarrësi' ? 'active' : ''}" data-role="qiramarrësi">Qeramarrës</div>
+          <div class="role-option ${selectedRole === 'qiradhënësi' ? 'active' : ''}" data-role="qiradhënësi">${t('role.qiradhënësi')}</div>
+          <div class="role-option ${selectedRole === 'qiramarrësi' ? 'active' : ''}" data-role="qiramarrësi">${t('role.qiramarrësi')}</div>
         </div>
       </div>`;
   }
@@ -25,14 +27,14 @@ export function renderLogin(onNavigate) {
   function userTypeHtml() {
     return `
       <div class="form-group">
-        <label>Lloji i përdoruesit</label>
+        <label>${t('auth.userType')}</label>
         <select name="userType" id="user-type-select">
-          <option value="employed" ${selectedUserType === 'employed' ? 'selected' : ''}>I punësuar</option>
-          <option value="student" ${selectedUserType === 'student' ? 'selected' : ''}>Student</option>
+          <option value="employed" ${selectedUserType === 'employed' ? 'selected' : ''}>${t('auth.employed')}</option>
+          <option value="student" ${selectedUserType === 'student' ? 'selected' : ''}>${t('auth.student')}</option>
         </select>
       </div>
       <div class="form-group" id="campus-group" style="${selectedUserType === 'student' ? '' : 'display:none'}">
-        <label>Kampus / Fakultet</label>
+        <label>${t('auth.campus')}</label>
         <select name="campusId">
           <option value="up">Universiteti i Prishtinës</option>
           <option value="uibm">UIBM</option>
@@ -44,46 +46,49 @@ export function renderLogin(onNavigate) {
 
   function render() {
     const titles = {
-      login: 'Kyçu në Llogari',
-      register: 'Regjistrohu',
-      forgot: 'Harrove Fjalëkalimin?',
+      login: t('auth.loginTitle'),
+      register: t('auth.registerTitle'),
+      forgot: t('auth.forgotTitle'),
     };
 
     let body = '';
     if (mode === 'forgot') {
       body = `
-        <p class="field-hint">Vendosni email-in e llogarisë. Do të merrni një link për rivendosjen e fjalëkalimit.</p>
+        <p class="field-hint">${t('auth.forgotHint')}</p>
         <form id="auth-form">
-          <div class="form-group"><label>Email</label><input type="email" name="email" required placeholder="emaili-juaj@email.com" /></div>
-          <button type="submit" class="btn btn-primary btn-block">Dërgo Linkun</button>
+          <div class="form-group"><label>${t('common.email')}</label><input type="email" name="email" required placeholder="${t('auth.emailPlaceholder')}" /></div>
+          <button type="submit" class="btn btn-primary btn-block">${t('auth.sendLink')}</button>
         </form>`;
     } else {
       body = `
         <form id="auth-form">
           ${mode === 'register' ? `
-            <div class="form-group"><label>Emri i plotë</label><input type="text" name="fullName" required /></div>
+            <div class="form-group"><label>${t('auth.fullName')}</label><input type="text" name="fullName" required /></div>
             ${roleSelectorHtml()}
             ${userTypeHtml()}
           ` : ''}
-          <div class="form-group"><label>${icons.mail} Email</label><input type="email" name="email" required placeholder="emaili-juaj@email.com" /></div>
-          <div class="form-group"><label>${icons.lock} Fjalëkalimi</label><input type="password" name="password" required minlength="6" /></div>
+          <div class="form-group"><label>${icons.mail} ${t('common.email')}</label><input type="email" name="email" required placeholder="${t('auth.emailPlaceholder')}" /></div>
+          <div class="form-group"><label>${icons.lock} ${t('auth.password')}</label><input type="password" name="password" required minlength="6" /></div>
           ${mode === 'login' ? `
             <div class="form-row">
-              <a href="#" id="forgot-link">Harrove fjalëkalimin?</a>
+              <a href="#" id="forgot-link">${t('auth.forgotLink')}</a>
             </div>` : ''}
-          <button type="submit" class="btn btn-primary btn-block btn-lg">${mode === 'register' ? 'Regjistrohu' : 'Kyçu'}</button>
+          <button type="submit" class="btn btn-primary btn-block btn-lg">${mode === 'register' ? t('auth.registerBtn') : t('auth.loginBtn')}</button>
         </form>
         <div class="auth-footer">
-          ${mode === 'register' ? 'Ke llogari?' : 'Nuk ke llogari?'}
-          <a href="#" id="toggle-auth">${mode === 'register' ? ' Kyçu' : ' Regjistrohu'}</a>
+          ${mode === 'register' ? t('auth.hasAccount') : t('auth.noAccount')}
+          <a href="#" id="toggle-auth">${mode === 'register' ? ` ${t('auth.loginBtn')}` : ` ${t('auth.registerBtn')}`}</a>
         </div>`;
     }
 
     return `
       <div class="auth-page">
         <div class="auth-header">
-          <a href="../index.html" class="brand-link"><h1>Banesë për ty</h1></a>
-          <p>Platforma për Menaxhimin e Qerasë</p>
+          <div class="auth-header-top">
+            <a href="../index.html" class="brand-link"><h1>Banesë për ty</h1></a>
+            ${renderLangSwitchHtml()}
+          </div>
+          <p>${t('auth.tagline')}</p>
         </div>
         <div class="auth-card">
           <div class="auth-card-header">
@@ -93,7 +98,7 @@ export function renderLogin(onNavigate) {
           <div class="auth-card-body">
             <div id="auth-alert"></div>
             ${body}
-            ${mode === 'forgot' ? `<a href="#" id="back-login" class="auth-back">← Kthehu te kyçja</a>` : ''}
+            ${mode === 'forgot' ? `<a href="#" id="back-login" class="auth-back">${t('auth.backLogin')}</a>` : ''}
           </div>
         </div>
       </div>`;
@@ -105,6 +110,12 @@ export function renderLogin(onNavigate) {
   }
 
   function attachEvents(container) {
+    attachLangSwitch(container, () => {
+      container.innerHTML = render();
+      attachEvents(container);
+      onLangChange?.();
+    });
+
     container.querySelector('#toggle-auth')?.addEventListener('click', (e) => {
       e.preventDefault();
       mode = mode === 'register' ? 'login' : 'register';
@@ -172,15 +183,18 @@ export function renderLogin(onNavigate) {
             mode = 'login';
             setTimeout(() => { container.innerHTML = render(); attachEvents(container); }, 2500);
           } else {
-            onNavigate('home');
+            const { entry } = parseAppUrl();
+            onNavigate(resolvePageAfterAuth(result.user, entry, null));
           }
         } else {
           showAlert(container, 'error', result.error);
         }
       } else {
         const result = await login(email, password);
-        if (result.success) onNavigate('home');
-        else showAlert(container, 'error', result.error);
+        if (result.success) {
+          const { entry } = parseAppUrl();
+          onNavigate(resolvePageAfterAuth(result.user, entry, null));
+        } else showAlert(container, 'error', result.error);
       }
     });
   }
@@ -189,46 +203,48 @@ export function renderLogin(onNavigate) {
 }
 
 function getPageTitle(role, page) {
-  const titles = {
-    profile: 'Profili Im',
-    'add-property': 'Shto Banesë të Re',
-    search: 'Kërko Banesa',
-    favorites: 'Të Preferuarat',
-    payments: 'Pagesat e Banesës',
-    expenses: 'Menaxho Shpenzimet',
-    contract: 'Kontrata',
-    approvals: 'Miratime Admin',
-    notifications: 'Njoftimet',
+  const map = {
+    profile: 'page.profile',
+    'add-property': 'page.addProperty',
+    search: 'page.search',
+    favorites: 'page.favorites',
+    payments: 'page.payments',
+    expenses: 'page.expenses',
+    contract: 'page.contract',
+    approvals: 'page.approvals',
+    users: 'page.users',
+    notifications: 'page.notifications',
   };
-  if (titles[page]) return titles[page];
-  if (role === 'qiradhënësi') return 'Pronat e Mia';
-  if (role === 'qiramarrësi') return 'Banesa Ime';
-  return 'Panel Admin';
+  if (map[page]) return t(map[page]);
+  if (role === 'qiradhënësi') return t('page.properties');
+  if (role === 'qiramarrësi') return t('page.myHome');
+  return t('page.admin');
 }
 
 function getNavItems(role) {
   if (role === 'qiradhënësi') {
     return [
-      { id: 'home', label: 'Pronat', icon: icons.house },
-      { id: 'expenses', label: 'Shpenzimet', icon: icons.card },
-      { id: 'payments', label: 'Pagesat', icon: icons.doc },
-      { id: 'notifications', label: 'Njoftimet', icon: icons.bell },
-      { id: 'profile', label: 'Profili', icon: icons.user },
+      { id: 'home', label: t('nav.properties'), icon: icons.house },
+      { id: 'expenses', label: t('nav.expenses'), icon: icons.card },
+      { id: 'payments', label: t('nav.payments'), icon: icons.doc },
+      { id: 'notifications', label: t('nav.notifications'), icon: icons.bell },
+      { id: 'profile', label: t('nav.profile'), icon: icons.user },
     ];
   }
   if (role === 'qiramarrësi') {
     return [
-      { id: 'home', label: 'Banesa', icon: icons.house },
-      { id: 'favorites', label: 'Të Preferuarat', icon: icons.heart },
-      { id: 'notifications', label: 'Njoftimet', icon: icons.bell },
-      { id: 'profile', label: 'Profili', icon: icons.user },
+      { id: 'home', label: t('nav.myHome'), icon: icons.house },
+      { id: 'favorites', label: t('nav.favorites'), icon: icons.heart },
+      { id: 'notifications', label: t('nav.notifications'), icon: icons.bell },
+      { id: 'profile', label: t('nav.profile'), icon: icons.user },
     ];
   }
   return [
-    { id: 'home', label: 'Panel', icon: icons.house },
-    { id: 'approvals', label: 'Miratime', icon: icons.check },
-    { id: 'notifications', label: 'Njoftimet', icon: icons.bell },
-    { id: 'profile', label: 'Profili', icon: icons.user },
+    { id: 'home', label: t('nav.panel'), icon: icons.house },
+    { id: 'users', label: t('nav.users'), icon: icons.user },
+    { id: 'approvals', label: t('nav.approvals'), icon: icons.check },
+    { id: 'notifications', label: t('nav.notifications'), icon: icons.bell },
+    { id: 'profile', label: t('nav.profile'), icon: icons.user },
   ];
 }
 
@@ -236,7 +252,7 @@ export function renderAppShell(user, page, content, unreadCount = 0) {
   const role = user.role;
   const navItems = getNavItems(role);
   const title = getPageTitle(role, page);
-  const subPages = ['add-property', 'search', 'payments', 'contract', 'favorites', 'expenses', 'approvals', 'notifications'];
+  const subPages = ['add-property', 'search', 'payments', 'contract', 'favorites', 'expenses', 'approvals', 'users', 'notifications'];
 
   if (!subPages.includes(page)) {
     return `
@@ -247,11 +263,14 @@ export function renderAppShell(user, page, content, unreadCount = 0) {
             <h1 class="page-title">${title}</h1>
             <span class="user-role-badge">${getRoleLabel(role)}</span>
           </div>
-          <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Hap menynë" aria-expanded="false" aria-controls="top-nav">
-            <span class="nav-toggle-bar"></span>
-            <span class="nav-toggle-bar"></span>
-            <span class="nav-toggle-bar"></span>
-          </button>
+          <div class="header-actions">
+            ${renderLangSwitchHtml()}
+            <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="top-nav">
+              <span class="nav-toggle-bar"></span>
+              <span class="nav-toggle-bar"></span>
+              <span class="nav-toggle-bar"></span>
+            </button>
+          </div>
         </div>
         <nav class="top-nav" id="top-nav">
           ${navItems.map((item) => `
@@ -260,7 +279,7 @@ export function renderAppShell(user, page, content, unreadCount = 0) {
               ${item.id === 'notifications' && unreadCount > 0 ? `<span class="nav-badge">${unreadCount}</span>` : ''}
             </button>
           `).join('')}
-          <button class="logout-link" id="logout-btn">${icons.login} Dil</button>
+          <button class="logout-link" id="logout-btn">${icons.login} ${t('common.logout')}</button>
         </nav>
       </header>
       <main class="page-content">${content}</main>
@@ -273,15 +292,20 @@ export function renderAppShell(user, page, content, unreadCount = 0) {
         <div class="header-left sub-header-left">
           <span class="user-role-badge user-role-badge--sub">${user.fullName} · ${getRoleLabel(role)}</span>
         </div>
-        <button class="logout-link logout-link--compact" id="logout-btn">Dil</button>
+        <div class="header-actions sub-header-actions">
+          ${renderLangSwitchHtml()}
+          <button class="logout-link logout-link--compact" id="logout-btn">${t('common.logout')}</button>
+        </div>
       </header>
       <main class="page-content">${content}</main>
     </div>`;
 }
 
-export function attachShellEvents(container, onNavigate, onLogout) {
+export function attachShellEvents(container, onNavigate, onLogout, onLangChange) {
   const navToggle = container.querySelector('#nav-toggle');
   const topNav = container.querySelector('#top-nav');
+
+  attachLangSwitch(container, () => onLangChange?.());
 
   function setNavOpen(isOpen) {
     if (!navToggle || !topNav) return;
@@ -308,6 +332,6 @@ export function attachShellEvents(container, onNavigate, onLogout) {
   });
 }
 
-export function renderBackButton(label = 'Kthehu', page = 'home') {
-  return `<button class="page-back" data-page="${page}">${icons.arrowLeft} ${label}</button>`;
+export function renderBackButton(label, page = 'home') {
+  return `<button class="page-back" data-page="${page}">${icons.arrowLeft} ${label ?? t('common.back')}</button>`;
 }
