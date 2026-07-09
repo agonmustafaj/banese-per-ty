@@ -363,6 +363,45 @@ export async function uploadSignature(userId, contractId, signature, role = 'ten
   };
 }
 
+/** Ngarko nënshkrimin nga storage kur në DB ka vetëm storagePath. */
+export async function resolveSignatureDataUrl(signature) {
+  if (!signature) return null;
+  if (signature.dataUrl) return signature;
+  if (!signature.storagePath) return signature;
+
+  const supabase = getSupabase();
+  if (!supabase) return signature;
+
+  const { data, error } = await supabase.storage
+    .from('contract-signatures')
+    .download(signature.storagePath);
+  if (error) {
+    console.error('resolveSignatureDataUrl:', error);
+    return signature;
+  }
+
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(data);
+  });
+
+  return { ...signature, dataUrl };
+}
+
+export async function hydrateContractSignatures(contracts = []) {
+  for (const contract of contracts) {
+    if (contract.landlordSignature) {
+      contract.landlordSignature = await resolveSignatureDataUrl(contract.landlordSignature);
+    }
+    if (contract.signature) {
+      contract.signature = await resolveSignatureDataUrl(contract.signature);
+    }
+  }
+  return contracts;
+}
+
 export async function fetchProfile(userId) {
   const supabase = getSupabase();
   const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();

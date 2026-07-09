@@ -5,7 +5,7 @@ import {
   signInWithGoogle,
 } from '../auth.js';
 import { getRoleLabel } from '../data.js';
-import { getPendingContractsForTenant } from '../services.js';
+import { getPendingContractsForTenant, getPendingContractsForLandlord } from '../services.js';
 import { icons } from '../icons.js';
 import { parseAppUrl, resolvePageAfterAuth } from '../nav.js';
 import { t, renderLangSwitchHtml, attachLangSwitch } from '../i18n.js';
@@ -230,6 +230,7 @@ function getNavItems(role) {
   if (role === 'qiradhënësi') {
     return [
       { id: 'home', label: t('nav.properties'), icon: icons.house },
+      { id: 'contract', label: t('nav.contracts'), icon: icons.doc },
       { id: 'expenses', label: t('nav.expenses'), icon: icons.card },
       { id: 'payments', label: t('nav.payments'), icon: icons.doc },
       { id: 'notifications', label: t('nav.notifications'), icon: icons.bell },
@@ -259,7 +260,12 @@ export function renderAppShell(user, page, content, unreadCount = 0) {
   const navItems = getNavItems(role);
   const title = getPageTitle(role, page);
   const subPages = ['add-property', 'search', 'payments', 'contract', 'favorites', 'expenses', 'approvals', 'users', 'notifications'];
-  const pendingContractCount = role === 'qiramarrësi' ? getPendingContractsForTenant(user.id).length : 0;
+  const pendingContractCount =
+    role === 'qiramarrësi'
+      ? getPendingContractsForTenant(user.id).length
+      : role === 'qiradhënësi'
+        ? getPendingContractsForLandlord(user.id).length
+        : 0;
 
   function navBadge(item) {
     if (item.id === 'notifications' && unreadCount > 0) {

@@ -1,6 +1,6 @@
 import { isSupabaseEnabled } from './config.js';
 import { t, locale } from './i18n.js';
-import { loadAllFromSupabase, loadVolatileFromSupabase, syncAllToSupabase, fetchContractsForCurrentUser, fetchPropertiesByIds } from './supabase/sync.js';
+import { loadAllFromSupabase, loadVolatileFromSupabase, syncAllToSupabase, fetchContractsForCurrentUser, fetchPropertiesByIds, hydrateContractSignatures } from './supabase/sync.js';
 
 export const PAGE_SIZE = 20;
 export const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
@@ -249,6 +249,7 @@ export async function refreshContractsAsync() {
   if (!memoryCache) return loadDataAsync(1);
 
   const contracts = await fetchContractsForCurrentUser();
+  await hydrateContractSignatures(contracts);
   const propertyIds = contracts.map((c) => c.propertyId).filter(Boolean);
   const properties = propertyIds.length ? await fetchPropertiesByIds(propertyIds) : [];
 
@@ -257,6 +258,7 @@ export async function refreshContractsAsync() {
     contracts: mergeEntityList(memoryCache.contracts, contracts),
     properties: mergeEntityList(memoryCache.properties, properties),
   });
+  await hydrateContractSignatures(memoryCache.contracts);
   refreshAdminStats(memoryCache);
   return memoryCache;
 }

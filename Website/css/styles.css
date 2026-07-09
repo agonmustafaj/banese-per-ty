@@ -1386,8 +1386,47 @@ button, input, select, textarea {
   padding: 1.5rem;
   font-size: 0.875rem;
   line-height: 1.7;
-  max-height: 300px;
-  overflow-y: auto;
+}
+
+.signatures-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+}
+
+.signature-preview {
+  background: var(--bg-card);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem;
+  min-height: 72px;
+}
+
+.signature-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+
+.signature-img {
+  display: block;
+  max-width: 100%;
+  max-height: 64px;
+  object-fit: contain;
+}
+
+.signature-typed-name {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: 1.1rem;
+  color: var(--primary);
+}
+
+.section-subtitle {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin: 1.25rem 0 0.75rem;
+  color: var(--text-muted);
 }
 
 .empty-state {

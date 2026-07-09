@@ -52,6 +52,7 @@ import {
   reviewPaymentProof,
   submitPaymentProof,
   addMonthlyExpense,
+  ensureMonthlyRentPayments,
   processPhotos,
   markNotificationRead,
   getUnreadCount,
@@ -59,6 +60,7 @@ import {
   loadData,
 } from './services.js';
 import { downloadContractPdf, downloadPaymentsPdf } from './pdf.js';
+import { hydrateContractSignatures } from './supabase/sync.js';
 import { formatDate, saveData, saveDataAsync } from './data.js';
 import {
   initUIGuard,
@@ -128,11 +130,12 @@ async function refreshInBackground() {
   refreshInFlight = (async () => {
     try {
       const user = getCurrentUserSync();
-      if (user?.role === 'qiramarrësi') {
+      if (user?.role === 'qiramarrësi' || user?.role === 'qiradhënësi') {
         await refreshContractsAsync();
       } else {
         await refreshDataAsync();
       }
+      ensureMonthlyRentPayments();
       dataLoadError = null;
       if (user) {
         patchNotificationBadge(app, getUnreadCount(user.id));
@@ -184,15 +187,17 @@ async function navigate(page) {
   if (page === 'contract' && isAuthenticatedSync()) {
     try {
       await refreshContractsAsync();
+      ensureMonthlyRentPayments();
     } catch (err) {
       console.error('refreshContractsAsync before contract:', err);
     }
   }
   if (page === 'home' && isAuthenticatedSync()) {
     const user = getCurrentUserSync();
-    if (user?.role === 'qiramarrësi') {
+    if (user?.role === 'qiramarrësi' || user?.role === 'qiradhënësi') {
       try {
         await refreshContractsAsync();
+        ensureMonthlyRentPayments();
       } catch (err) {
         console.error('refreshContractsAsync before home:', err);
       }
@@ -749,6 +754,7 @@ function bindSearchEvents(user) {
 
 async function saveContractPdf(contract, data) {
   const stored = data.contracts.find((c) => c.id === contract.id) || contract;
+  await hydrateContractSignatures([stored]);
   const property = data.properties.find((p) => p.id === stored.propertyId);
   const landlord = data.users.find((u) => u.id === stored.landlordId);
   const tenant = data.users.find((u) => u.id === stored.tenantId);
@@ -782,6 +788,7 @@ async function init() {
 
     if (isAuthenticatedSync()) {
       await reloadAppData();
+      ensureMonthlyRentPayments();
       startAutoSync();
       const user = getCurrentUserSync();
       currentPage = resolvePageAfterAuth(user, entry, page);

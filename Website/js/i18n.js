@@ -257,6 +257,11 @@ const translations = {
     'contract.reject': '✗ Refuzoj',
     'contract.downloadPdf': 'Shkarko PDF',
     'contract.signedOn': '✓ Nënshkruar elektronikisht më {date}',
+    'contract.landlordSign': 'Nënshkrimi i qeradhënësit',
+    'contract.tenantSign': 'Nënshkrimi i qeramarrësit',
+    'contract.awaitingTenant': 'Në pritje të nënshkrimit të qeramarrësit',
+    'contract.sentTitle': 'KONTRATË E DËRGUAR',
+    'contract.landlordNone': 'Nuk keni kontrata të dërguara ose aktive.',
     'contract.noActive': 'Nuk keni kontratë aktive.',
 
     'profile.currentPassword': 'Fjalëkalimi aktual',
@@ -578,6 +583,11 @@ const translations = {
     'contract.reject': '✗ Decline',
     'contract.downloadPdf': 'Download PDF',
     'contract.signedOn': '✓ Electronically signed on {date}',
+    'contract.landlordSign': 'Landlord signature',
+    'contract.tenantSign': 'Tenant signature',
+    'contract.awaitingTenant': 'Awaiting tenant signature',
+    'contract.sentTitle': 'SENT CONTRACT',
+    'contract.landlordNone': 'You have no sent or active contracts.',
     'contract.noActive': 'You have no active contract.',
 
     'profile.currentPassword': 'Current password',

@@ -14,6 +14,8 @@ import {
   getPendingRequestsForLandlord,
   hasTenantPendingRequest,
   getPendingContractsForTenant,
+  getLandlordContracts,
+  getPendingContractsForLandlord,
   getPendingProperties,
   getFavorites,
   isFavorite,
@@ -367,17 +369,26 @@ export function renderNotificationsPage() {
     return '';
   };
 
+  const contractActionLabel = (notification, role) => {
+    if (notification.type !== 'kontratë') return t('common.view');
+    const needsSign =
+      role === 'qiramarrësi' && /nënshkruani/i.test(notification.message || '');
+    return needsSign ? t('tenant.viewSign') : t('common.view');
+  };
+
   return `
     ${renderBackButton()}
     <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1rem">${t('page.notifications')}</h2>
     ${notes.length === 0 ? `<div class="empty-state"><p>${t('notifications.none')}</p></div>` : notes.map((n) => {
       const actionPage = actionPageFor(n);
+      const actionLabel = contractActionLabel(n, user.role);
+      const isSignAction = actionLabel === t('tenant.viewSign');
       return `
         <div class="activity-item ${n.read ? '' : 'unread'}" data-id="${n.id}">
           <div class="title">${n.type}</div>
           <div class="meta">${n.message}</div>
           <div class="request-meta">${formatLocaleString(n.sentAt)}</div>
-          ${actionPage ? `<button type="button" class="btn ${actionPage === 'contract' ? 'btn-blue' : 'btn-outline'} btn-sm notification-open-btn" data-id="${n.id}" data-page="${actionPage}" style="margin-top:0.75rem">${actionPage === 'contract' ? t('tenant.viewSign') : t('common.view')}</button>` : ''}
+          ${actionPage ? `<button type="button" class="btn ${isSignAction ? 'btn-blue' : 'btn-outline'} btn-sm notification-open-btn" data-id="${n.id}" data-page="${actionPage}" style="margin-top:0.75rem">${actionLabel}</button>` : ''}
         </div>`;
     }).join('')}`;
 }
@@ -684,8 +695,71 @@ export function renderLandlordExpensesPage() {
     <button class="btn btn-outline" data-page="payments" style="margin-top:1rem">${t('expense.viewAll')}</button>`;
 }
 
-export function renderContractPage() {
-  const user = getCurrentUserSync();
+function renderSignaturePreview(signature, label) {
+  if (!signature) return '';
+  if (signature.dataUrl) {
+    return `<div class="signature-preview"><div class="signature-label">${label}</div><img src="${signature.dataUrl}" alt="${label}" class="signature-img" /></div>`;
+  }
+  if (signature.typedName) {
+    return `<div class="signature-preview signature-typed"><div class="signature-label">${label}</div><span class="signature-typed-name">${signature.typedName}</span></div>`;
+  }
+  return '';
+}
+
+function renderContractCardBody({ contract, property, landlord, tenant, user }) {
+  const partyA = landlord?.fullName || user.fullName;
+  const partyB = tenant?.fullName || user.fullName;
+  const isLandlordView = user.role === 'qiradhënësi';
+
+  return `
+    ${formatContractNumber(contract) ? `<span class="sub-status">Nr. ${formatContractNumber(contract)}</span>` : ''}<br/><br/>
+    ${t('contract.between', { landlord: isLandlordView ? partyA : landlord?.fullName, tenant: isLandlordView ? tenant?.fullName : partyB })}<br/><br/>
+    ${t('contract.object', { title: property?.title, address: property?.address })}<br/>
+    ${t('contract.rent', { amount: formatCurrency(property?.rentPrice) })}<br/>
+    ${t('contract.period', { start: formatDate(contract.startDate), end: formatDate(contract.endDate) })}<br/>
+    ${t('contract.status', { status: getContractStatusLabel(contract.status) })}<br/>
+    <div class="signatures-row" style="margin-top:1rem">
+      ${renderSignaturePreview(contract.landlordSignature, t('contract.landlordSign'))}
+      ${renderSignaturePreview(contract.signature, t('contract.tenantSign'))}
+    </div>
+    ${contract.signedAt ? `<div class="sub-status">${t('contract.signedOn', { date: formatLocaleDate(contract.signedAt) })}</div>` : ''}`;
+}
+
+function renderLandlordContractPage(user) {
+  const entries = getLandlordContracts(user.id);
+  const pending = entries.filter((e) => ['pending_signature', 'generated_pdf'].includes(e.contract.status));
+  const active = entries.filter((e) => ['active', 'signed'].includes(e.contract.status));
+
+  let html = `${renderBackButton()}<h2>${t('page.contract')}</h2>`;
+
+  if (pending.length > 0) {
+    html += `<h3 class="section-subtitle">${t('contract.awaitingTenant')}</h3>`;
+    html += pending.map(({ contract, property, tenant }) => `
+      <div class="contract-preview pending-contract" data-id="${contract.id}" style="margin-bottom:1.5rem;border:2px solid var(--warning)">
+        <strong>${t('contract.sentTitle')}</strong>
+        ${renderContractCardBody({ contract, property, landlord: user, tenant, user })}
+        <button class="btn btn-outline download-pending-btn" data-id="${contract.id}" style="margin-top:1rem">${t('contract.downloadPdf')}</button>
+      </div>`).join('');
+  }
+
+  if (active.length > 0) {
+    html += `<h3 class="section-subtitle">${t('contract.activeTitle')}</h3>`;
+    html += active.map(({ contract, property, tenant }) => `
+      <div class="contract-preview" style="margin-bottom:1.5rem">
+        <strong>${property?.title || t('common.unknown')}</strong>
+        ${renderContractCardBody({ contract, property, landlord: user, tenant, user })}
+        <button class="btn btn-blue download-contract-btn" style="margin-top:1rem" data-id="${contract.id}">${t('contract.downloadPdf')}</button>
+      </div>`).join('');
+  }
+
+  if (pending.length === 0 && active.length === 0) {
+    html += `<div class="empty-state"><p>${t('contract.landlordNone')}</p></div>`;
+  }
+
+  return html;
+}
+
+function renderTenantContractPage(user) {
   const activeProperties = getTenantProperties(user.id);
   const pending = getPendingContractsForTenant(user.id);
   const data = loadData();
@@ -699,12 +773,7 @@ export function renderContractPage() {
       return `
         <div class="contract-preview pending-contract" data-id="${c.id}" style="margin-bottom:1.5rem;border:2px solid var(--primary)">
           <strong>${t('contract.pendingTitle')}</strong>
-          ${formatContractNumber(c) ? `<span class="sub-status">Nr. ${formatContractNumber(c)}</span>` : ''}<br/><br/>
-          ${t('contract.between', { landlord: landlord?.fullName, tenant: user.fullName })}<br/><br/>
-          ${t('contract.object', { title: p?.title, address: p?.address })}<br/>
-          ${t('contract.rent', { amount: formatCurrency(p?.rentPrice) })}<br/>
-          ${t('contract.period', { start: formatDate(c.startDate), end: formatDate(c.endDate) })}<br/>
-          ${t('contract.status', { status: getContractStatusLabel(c.status) })}<br/>
+          ${renderContractCardBody({ contract: c, property: p, landlord, tenant: user, user })}
           <div style="margin-top:1rem;display:flex;gap:0.5rem;flex-wrap:wrap">
             <button class="btn btn-blue sign-accept-btn" data-id="${c.id}">${t('contract.signDigital')}</button>
             <button class="btn btn-danger sign-reject-btn" data-id="${c.id}">${t('contract.reject')}</button>
@@ -718,12 +787,7 @@ export function renderContractPage() {
     html += activeProperties.map(({ contract, property, landlord }) => `
       <div class="contract-preview" style="margin-bottom:1.5rem">
         <strong>${t('contract.activeTitle')}</strong><br/><br/>
-        ${t('contract.between', { landlord: landlord?.fullName, tenant: user.fullName })}<br/><br/>
-        ${property?.title || t('common.unknown')} — ${property?.address || '—'}<br/>
-        ${t('contract.rent', { amount: formatCurrency(property?.rentPrice || 0) })}<br/>
-        ${t('contract.period', { start: formatDate(contract.startDate), end: formatDate(contract.endDate) })}<br/>
-        ${t('contract.status', { status: getContractStatusLabel(contract.status) })}<br/>
-        ${contract.signature ? `<div class="sub-status">${t('contract.signedOn', { date: formatLocaleDate(contract.signedAt) })}</div>` : ''}
+        ${renderContractCardBody({ contract, property, landlord, tenant: user, user })}
         <button class="btn btn-blue download-contract-btn" style="margin-top:1rem" data-id="${contract.id}">${t('contract.downloadPdf')}</button>
       </div>`).join('');
   } else if (pending.length === 0) {
@@ -731,6 +795,12 @@ export function renderContractPage() {
   }
 
   return html;
+}
+
+export function renderContractPage() {
+  const user = getCurrentUserSync();
+  if (user.role === 'qiradhënësi') return renderLandlordContractPage(user);
+  return renderTenantContractPage(user);
 }
 
 export function showSignatureModal(container, contract, onSign, options = {}) {

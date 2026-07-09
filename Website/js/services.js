@@ -196,13 +196,35 @@ export function getTenantCurrentProperty(tenantId) {
 export function getTenantProperties(tenantId) {
   const data = loadData();
   return data.contracts
-    .filter((c) => c.tenantId === tenantId && c.status === 'active')
+    .filter((c) => c.tenantId === tenantId && (c.status === 'active' || c.status === 'signed'))
     .map((contract) => ({
       contract,
       property: data.properties.find((p) => p.id === contract.propertyId),
       landlord: data.users.find((u) => u.id === contract.landlordId),
     }))
     .filter((entry) => entry.property);
+}
+
+export function getLandlordContracts(landlordId) {
+  const data = loadData();
+  return data.contracts
+    .filter((c) => c.landlordId === landlordId)
+    .map((contract) => ({
+      contract,
+      property: data.properties.find((p) => p.id === contract.propertyId),
+      tenant: data.users.find((u) => u.id === contract.tenantId),
+    }))
+    .filter((entry) => entry.property)
+    .sort((a, b) => (b.contract.createdAt || '').localeCompare(a.contract.createdAt || ''));
+}
+
+export function getPendingContractsForLandlord(landlordId) {
+  const data = loadData();
+  return data.contracts.filter(
+    (c) =>
+      c.landlordId === landlordId &&
+      (c.status === 'pending_signature' || c.status === 'generated_pdf')
+  );
 }
 
 export function getPendingContractsForTenant(tenantId) {
@@ -712,6 +734,7 @@ export async function signContract(contractId, accepted, signature = null) {
   }
 
   generateContractPayments(contract, property, data);
+  ensureMonthlyRentPayments(data);
   checkContractRenewal(contract, data);
 
   const title = property?.title || 'banesë';
@@ -744,36 +767,66 @@ export async function signContract(contractId, accepted, signature = null) {
   return { success: true, contract };
 }
 
+function monthKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function addRentPaymentForMonth(contract, property, data, month) {
+  const exists = data.payments.some(
+    (p) => p.contractId === contract.id && p.month === month && p.type === 'qera'
+  );
+  if (exists) return false;
+
+  const start = new Date(contract.startDate);
+  const dueDay = start.getDate();
+  const dueDate = `${month}-${String(Math.min(dueDay, 28)).padStart(2, '0')}`;
+
+  data.payments.push({
+    id: generateId('pay'),
+    contractId: contract.id,
+    propertyId: contract.propertyId,
+    tenantId: contract.tenantId,
+    landlordId: contract.landlordId,
+    amount: property?.rentPrice || 350,
+    dueDate,
+    status: 'pending',
+    type: 'qera',
+    month,
+  });
+  return true;
+}
+
 function generateContractPayments(contract, property, data = loadData()) {
-  const signedAt = contract.signedAt ? new Date(contract.signedAt) : new Date();
-  const end = new Date(contract.endDate);
-  let current = new Date(signedAt.getFullYear(), signedAt.getMonth(), 1);
-  const dueDay = signedAt.getDate();
+  const firstMonth = contract.startDate?.slice(0, 7) || monthKey(new Date());
+  addRentPaymentForMonth(contract, property, data, firstMonth);
+}
 
-  while (current <= end) {
-    const month = current.toISOString().slice(0, 7);
-    const dueDate = `${month}-${String(Math.min(dueDay, 28)).padStart(2, '0')}`;
+/** Shton pagesën mujore të qerasë për çdo muaj deri në muajin aktual (jo të ardhshëm). */
+export function ensureMonthlyRentPayments(existingData = null) {
+  const data = existingData || loadData();
+  const currentMonth = monthKey(new Date());
+  let changed = false;
 
-    const exists = data.payments.some(
-      (p) => p.contractId === contract.id && p.month === month && p.type === 'qera'
-    );
-    if (!exists) {
-      data.payments.push({
-        id: generateId('pay'),
-        contractId: contract.id,
-        propertyId: contract.propertyId,
-        tenantId: contract.tenantId,
-        landlordId: contract.landlordId,
-        amount: property?.rentPrice || 350,
-        dueDate,
-        status: 'pending',
-        type: 'qera',
-        month,
-      });
+  for (const contract of data.contracts) {
+    if (!['active', 'signed'].includes(contract.status)) continue;
+    const property = data.properties.find((p) => p.id === contract.propertyId);
+    if (!property) continue;
+
+    const start = new Date(contract.startDate);
+    const end = new Date(contract.endDate);
+    const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+    const endBound = new Date(end.getFullYear(), end.getMonth(), 1);
+
+    while (cursor <= endBound) {
+      const month = monthKey(cursor);
+      if (month > currentMonth) break;
+      if (addRentPaymentForMonth(contract, property, data, month)) changed = true;
+      cursor.setMonth(cursor.getMonth() + 1);
     }
-
-    current.setMonth(current.getMonth() + 1);
   }
+
+  if (changed && !existingData) saveData(data);
+  return data;
 }
 
 function checkContractRenewal(contract, data = null) {
