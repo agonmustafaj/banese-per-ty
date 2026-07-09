@@ -1,4 +1,4 @@
-import { loadData, saveData, saveDataAsync, commitLocalCache, generateId, PAGE_SIZE, PHOTO_MAX_BYTES, OVERDUE_DAYS, CAMPUSES, KOSOVO_CITIES, EXPENSE_TYPES, hasValidPhotos, getExpenseTypeLabel, formatContractNumber } from './data.js';
+import { loadData, saveData, saveDataAsync, commitLocalCache, generateId, PAGE_SIZE, PHOTO_MAX_BYTES, OVERDUE_DAYS, CAMPUSES, KOSOVO_CITIES, EXPENSE_TYPES, hasValidPhotos, getExpenseTypeLabel, getPaymentDisplayName, formatContractNumber } from './data.js';
 import { getCurrentUserSync } from './auth.js';
 import { addNotification, addNotificationAsync, addAuditLog } from './services-core.js';
 import { isSupabaseEnabled } from './config.js';
@@ -77,7 +77,7 @@ export async function markNotificationRead(id) {
   if (isSupabaseEnabled()) {
     await saveDataAsync(data);
   } else {
-    saveData(data);
+  saveData(data);
   }
   return true;
 }
@@ -272,13 +272,13 @@ export async function saveProperty(property) {
     return { success: true, property: existing, pendingApproval: true };
   }
 
-  const newProp = {
-    ...property,
+    const newProp = {
+      ...property,
     id: property.id || generateId('p'),
-    ownerId: user.id,
-    status: 'në pritje',
+      ownerId: user.id,
+      status: 'në pritje',
     occupied: false,
-    createdAt: new Date().toISOString().slice(0, 10),
+      createdAt: new Date().toISOString().slice(0, 10),
     amenities: property.amenities || {},
     photos: property.photos || [],
     nearCampus: property.nearCampus || '',
@@ -403,8 +403,8 @@ export function getFavorites(userId) {
   const data = loadData();
   return dedupePropertiesById(
     data.favorites
-      .filter((f) => f.userId === userId)
-      .map((f) => data.properties.find((p) => p.id === f.propertyId))
+    .filter((f) => f.userId === userId)
+    .map((f) => data.properties.find((p) => p.id === f.propertyId))
       .filter(
         (p) =>
           p &&
@@ -799,11 +799,11 @@ function addRentPaymentForMonth(contract, property, data, month) {
   const dueDay = start.getDate();
   const dueDate = `${month}-${String(Math.min(dueDay, 28)).padStart(2, '0')}`;
 
-  data.payments.push({
-    id: generateId('pay'),
-    contractId: contract.id,
-    propertyId: contract.propertyId,
-    tenantId: contract.tenantId,
+    data.payments.push({
+      id: generateId('pay'),
+      contractId: contract.id,
+      propertyId: contract.propertyId,
+      tenantId: contract.tenantId,
     landlordId: contract.landlordId,
     amount: property?.rentPrice || 350,
     dueDate,
@@ -882,7 +882,7 @@ export function markPaymentPaid(paymentId) {
   payment.status = 'paguar';
   payment.paidAt = new Date().toISOString();
   payment.verifiedBy = user.fullName;
-  addAuditLog('payment_paid', user.id, `Pagesë ${paymentId} u shënua si paguar.`);
+  addAuditLog('payment_paid', user.id, `${getPaymentDisplayName(payment)} u shënua si paguar.`);
   saveData(data);
   return { success: true };
 }
@@ -937,13 +937,13 @@ export async function submitPaymentProof(paymentId, proof) {
       await addNotificationAsync(
         payment.landlordId,
         'pagesë',
-        `Dëshmi pagese e re kërkon miratimin tuaj (${payment.amount}€, ${getExpenseTypeLabel(payment.type)}).`,
+        `Dëshmi e re për ${getPaymentDisplayName(payment)} (${payment.amount}€) kërkon miratimin tuaj.`,
         data
       );
       addAuditLog(
         'payment_proof_submitted',
         user.id,
-        `Dëshmi pagese për ${paymentId} — pret miratim nga qeradhënësi.`,
+        `Dëshmi për ${getPaymentDisplayName(payment)} — pret miratim nga qeradhënësi.`,
         data
       );
       commitLocalCache(data);
@@ -951,12 +951,14 @@ export async function submitPaymentProof(paymentId, proof) {
       addNotification(
         payment.landlordId,
         'pagesë',
-        `Dëshmi pagese e re kërkon miratimin tuaj (${payment.amount}€, ${getExpenseTypeLabel(payment.type)}).`
+        `Dëshmi e re për ${getPaymentDisplayName(payment)} (${payment.amount}€) kërkon miratimin tuaj.`,
+        data
       );
       addAuditLog(
         'payment_proof_submitted',
         user.id,
-        `Dëshmi pagese për ${paymentId} — pret miratim nga qeradhënësi.`
+        `Dëshmi për ${getPaymentDisplayName(payment)} — pret miratim nga qeradhënësi.`,
+        data
       );
       saveData(data);
     }
@@ -972,25 +974,57 @@ export async function submitPaymentProof(paymentId, proof) {
   return { success: true, pendingReview: true };
 }
 
-export function reviewPaymentProof(paymentId, approve) {
+export async function reviewPaymentProof(paymentId, approve) {
   const data = loadData();
   const user = getCurrentUserSync();
   const payment = data.payments.find((p) => p.id === paymentId);
   if (!payment || payment.status !== 'nën_shqyrtim') {
     return { success: false, error: 'Pagesa nuk pret shqyrtim.' };
   }
+
+  const paymentName = getPaymentDisplayName(payment);
+
   if (approve) {
     payment.status = 'paguar';
     payment.paidAt = new Date().toISOString();
     payment.verifiedBy = user.fullName;
-    addNotification(payment.tenantId, 'pagesë', 'Dëshmia juaj e pagesës u miratua nga qeradhënësi.');
   } else {
     payment.status = 'pending';
-    addNotification(payment.tenantId, 'pagesë', 'Dëshmia e pagesës u refuzua. Ngarkoni një dëshmi tjetër.');
+    payment.paidAt = null;
+    payment.verifiedBy = null;
   }
-  addAuditLog('payment_proof_reviewed', user.id, `Pagesë ${paymentId} — ${approve ? 'miratuar' : 'refuzuar'} nga qeradhënësi.`);
-  saveData(data);
-  return { success: true };
+
+  const tenantMessage = approve
+    ? `${paymentName} u miratua nga qeradhënësi. Pagesa prej ${payment.amount}€ është konfirmuar.`
+    : `${paymentName} u refuzua nga qeradhënësi. Ngarkoni një dëshmi tjetër te faqja Pagesat.`;
+
+  try {
+    if (isSupabaseEnabled()) {
+      await upsertPaymentSupabase(payment);
+      await addNotificationAsync(payment.tenantId, 'pagesë', tenantMessage, data);
+      addAuditLog(
+        'payment_proof_reviewed',
+        user.id,
+        `Pagesë ${paymentName} — ${approve ? 'miratuar' : 'refuzuar'} nga qeradhënësi.`,
+        data
+      );
+      commitLocalCache(data);
+    } else {
+      addNotification(payment.tenantId, 'pagesë', tenantMessage, data);
+      addAuditLog(
+        'payment_proof_reviewed',
+        user.id,
+        `Pagesë ${paymentName} — ${approve ? 'miratuar' : 'refuzuar'} nga qeradhënësi.`,
+        data
+      );
+      saveData(data);
+    }
+  } catch (err) {
+    console.error('reviewPaymentProof:', err);
+    return { success: false, error: err.message || 'Nuk u ruajt vendimi. Provoni përsëri.' };
+  }
+
+  return { success: true, approved: approve };
 }
 
 export function disputePayment(paymentId, reason) {
@@ -1000,8 +1034,12 @@ export function disputePayment(paymentId, reason) {
   if (!payment) return { success: false, error: 'Pagesa nuk u gjet.' };
   payment.status = 'disputed';
   payment.disputeReason = reason || '';
-  addNotification(payment.landlordId, 'mosmarrëveshje', `Mosmarrëveshje për pagesën ${payment.type}: ${reason || '—'}`);
-  addAuditLog('payment_disputed', user.id, `Mosmarrëveshje ${paymentId}`);
+  addNotification(
+    payment.landlordId,
+    'mosmarrëveshje',
+    `Mosmarrëveshje për ${getPaymentDisplayName(payment)}: ${reason || '—'}`
+  );
+  addAuditLog('payment_disputed', user.id, `Mosmarrëveshje — ${getPaymentDisplayName(payment)}`);
   saveData(data);
   return { success: true };
 }
@@ -1047,7 +1085,7 @@ export function addMonthlyExpense({ propertyId, type, amount, month, tenantId })
   };
   data.payments.push(payment);
   if (payment.tenantId) {
-    addNotification(payment.tenantId, 'shpenzim', `Shpenzim i ri ${type}: ${amount}€ për ${dueMonth}.`);
+    addNotification(payment.tenantId, 'shpenzim', `Shpenzim i ri: ${getPaymentDisplayName(payment)} — ${amount}€.`);
   }
   addAuditLog('expense_added', user.id, `${type} ${amount}€ — ${property.title}`);
   saveData(data);
@@ -1108,6 +1146,7 @@ export {
   getFirstName,
   monthsUntil,
   getExpenseTypeLabel,
+  getPaymentDisplayName,
   getContractStatusLabel,
   getPaymentStatusLabel,
   getCampusName,

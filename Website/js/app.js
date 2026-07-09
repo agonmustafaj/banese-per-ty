@@ -34,6 +34,7 @@ import {
   showContractModal,
   showSignatureModal,
   showPaymentProofModal,
+  showProofViewerModal,
 } from './views/pages.js';
 import {
   saveProperty,
@@ -628,10 +629,44 @@ function attachPageEvents(page, user) {
       });
     });
     app.querySelectorAll('.review-approve-btn').forEach((btn) => {
-      btn.addEventListener('click', () => { reviewPaymentProof(btn.dataset.id, true); render(); });
+      btn.addEventListener('click', async () => {
+        const result = await reviewPaymentProof(btn.dataset.id, true);
+        if (!result.success) alert(result.error);
+        else alert(t('alert.proofReviewed'));
+        await render();
+      });
     });
     app.querySelectorAll('.review-reject-btn').forEach((btn) => {
-      btn.addEventListener('click', () => { reviewPaymentProof(btn.dataset.id, false); render(); });
+      btn.addEventListener('click', async () => {
+        if (!confirm(t('alert.rejectProofConfirm'))) return;
+        const result = await reviewPaymentProof(btn.dataset.id, false);
+        if (!result.success) alert(result.error);
+        else alert(t('alert.proofRejected'));
+        await render();
+      });
+    });
+    app.querySelectorAll('.view-proof-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const payment = loadData().payments.find((p) => p.id === btn.dataset.id);
+        if (!payment?.proof) {
+          alert(t('alert.proofNotFound'));
+          return;
+        }
+        btn.disabled = true;
+        try {
+          const url = await getPaymentProofSignedUrl(payment.proof);
+          if (!url) {
+            alert(t('alert.proofNotFound'));
+            return;
+          }
+          showProofViewerModal(app, payment, url);
+        } catch (err) {
+          console.error('view-proof:', err);
+          alert(err?.message || t('alert.proofLoadError'));
+        } finally {
+          btn.disabled = false;
+        }
+      });
     });
   }
 

@@ -1,4 +1,4 @@
-import { formatContractNumber } from './data.js';
+import { formatContractNumber, getPaymentDisplayName } from './data.js';
 
 const PRIMARY = [56, 189, 248];
 const DARK = [17, 24, 39];
@@ -313,18 +313,14 @@ export async function downloadPaymentsPdf(filename, payments, periodLabel, userN
   doc.setTextColor(...DARK);
   y += 26;
 
-  const typeLabels = {
-    qera: 'Qera', rryme: 'Rrymë', uji: 'Ujë', termokos: 'Termokos',
-    mbeturina: 'Mbeturina', mirembajtje: 'Mirëmbajtje', depozite: 'Depozitë',
-  };
   const statusLabels = {
     pending: 'Në pritje', paguar: 'Paguar', overdue: 'E vonuar',
-    disputed: 'Mosmarrëveshje', created: 'Krijuar', archived: 'Arkivuar',
+    disputed: 'Mosmarrëveshje', nën_shqyrtim: 'Në shqyrtim', created: 'Krijuar', archived: 'Arkivuar',
   };
 
   const rows = payments.map((p) => [
     new Date(p.dueDate).toLocaleDateString('sq-AL'),
-    typeLabels[p.type] || p.type,
+    getPaymentDisplayName(p),
     `${p.amount}€`,
     statusLabels[p.status] || p.status,
     p.proof ? 'Po' : '—',
@@ -334,7 +330,7 @@ export async function downloadPaymentsPdf(filename, payments, periodLabel, userN
     doc.autoTable({
       startY: y,
       margin: { left: margin, right: margin },
-      head: [['Data', 'Lloji', 'Shuma', 'Statusi', 'Dëshmi']],
+      head: [['Data', 'Pagesa', 'Shuma', 'Statusi', 'Dëshmi']],
       body: rows,
       theme: 'striped',
       headStyles: { fillColor: PRIMARY, textColor: 255, fontStyle: 'bold' },

@@ -147,7 +147,7 @@ function migrateData(data) {
 
   data.payments.forEach((p) => {
     p.status = normalizePaymentStatus(p.status);
-    if (p.type === 'qira') p.type = 'qera';
+    p.type = normalizePaymentType(p.type);
     if (!p.landlordId && p.propertyId) {
       const prop = data.properties.find((x) => x.id === p.propertyId);
       if (prop) p.landlordId = prop.ownerId;
@@ -353,8 +353,32 @@ export function monthsUntil(dateStr) {
   return Math.max(0, months);
 }
 
+export function normalizePaymentType(type) {
+  if (!type || typeof type !== 'string') return 'qera';
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(type)) return 'qera';
+  const id = type.trim().toLowerCase();
+  if (id === 'qira') return 'qera';
+  if (EXPENSE_TYPES.some((e) => e.id === id)) return id;
+  return 'qera';
+}
+
 export function getExpenseTypeLabel(type) {
-  return t(`expenseType.${type}`) || EXPENSE_TYPES.find((e) => e.id === type)?.label || type;
+  const normalized = normalizePaymentType(type);
+  return t(`expenseType.${normalized}`) || EXPENSE_TYPES.find((e) => e.id === normalized)?.label || normalized;
+}
+
+/** Emër i plotë i pagesës për UI dhe njoftime, p.sh. "Pagesa e qerasë (korrik 2026)". */
+export function getPaymentDisplayName(payment) {
+  const type = normalizePaymentType(payment?.type);
+  const title = t(`paymentTitle.${type}`) || getExpenseTypeLabel(type);
+  if (!payment?.month) return title;
+  const [year, month] = payment.month.split('-').map(Number);
+  if (!year || !month) return title;
+  const monthLabel = new Date(year, month - 1, 1).toLocaleDateString(locale(), {
+    month: 'long',
+    year: 'numeric',
+  });
+  return `${title} (${monthLabel})`;
 }
 
 export function getContractStatusLabel(status) {

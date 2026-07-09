@@ -223,11 +223,11 @@ function applyLang(lang) {
   localStorage.setItem(LANG_KEY, lang);
 }
 
-document.querySelectorAll('.lang-btn').forEach((btn) => {
-  btn.addEventListener('click', () => {
-    applyLang(btn.getAttribute('data-lang'));
-    setNavOpen(false);
-  });
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('.lang-btn');
+  if (!btn) return;
+  applyLang(btn.getAttribute('data-lang'));
+  if (mainNav?.classList.contains('nav-open')) setNavOpen(false);
 });
 
 applyLang(detectDefaultLang());

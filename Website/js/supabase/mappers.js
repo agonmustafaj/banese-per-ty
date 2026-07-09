@@ -162,6 +162,12 @@ export function contractToRow(c) {
 }
 
 export function paymentFromRow(row) {
+  let type = row.type;
+  if (!type || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(type)) {
+    type = 'qera';
+  } else if (type === 'qira') {
+    type = 'qera';
+  }
   return {
     id: row.id,
     contractId: row.contract_id,
@@ -171,7 +177,7 @@ export function paymentFromRow(row) {
     amount: Number(row.amount),
     dueDate: row.due_date,
     status: row.status,
-    type: row.type,
+    type,
     month: row.month,
     paidAt: row.paid_at,
     verifiedBy: row.verified_by,

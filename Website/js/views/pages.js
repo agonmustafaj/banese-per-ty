@@ -26,6 +26,7 @@ import {
   formatDate,
   getFirstName,
   monthsUntil,
+  getPaymentDisplayName,
   getExpenseTypeLabel,
   getContractStatusLabel,
   getPaymentStatusLabel,
@@ -605,11 +606,11 @@ export function renderPaymentsPage(period = {}) {
     ${payments.length === 0 ? `<div class="empty-state"><p>${t('payments.noExpenses')}</p></div>` : `
       <div class="table-responsive">
       <table>
-        <thead><tr><th>${t('common.date')}</th><th>${t('common.type')}</th><th>${t('common.amount')}</th><th>${t('common.status')}</th><th>${t('common.actions')}</th></tr></thead>
+        <thead><tr><th>${t('common.date')}</th><th>${t('payments.item')}</th><th>${t('common.amount')}</th><th>${t('common.status')}</th><th>${t('common.actions')}</th></tr></thead>
         <tbody>${payments.map((p) => `
           <tr>
             <td>${formatDate(p.dueDate)}</td>
-            <td>${getExpenseTypeLabel(p.type)}</td>
+            <td>${getPaymentDisplayName(p)}</td>
             <td>${formatCurrency(p.amount)}</td>
             <td><span class="status-badge ${statusBadgeClass(p.status)}">${getPaymentStatusLabel(p.status)}</span>${p.proof ? ` <span class="sub-status">📎 ${t('common.proof')}</span>` : ''}</td>
             <td>
@@ -629,6 +630,35 @@ export function renderPaymentsPage(period = {}) {
       </div>`}`;
 }
 
+export function showProofViewerModal(container, payment, url) {
+  const proofType = payment.proof?.type || '';
+  const isPdf = proofType.includes('pdf') || /\.pdf($|\?)/i.test(url);
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal modal-proof-viewer">
+      <div class="modal-header">
+        <h3>${t('payments.viewProof')}</h3>
+        <button type="button" class="modal-close" aria-label="${t('common.cancel')}">&times;</button>
+      </div>
+      <div class="modal-body proof-viewer-body">
+        <p class="field-hint">${getPaymentDisplayName(payment)} · ${formatCurrency(payment.amount)} · ${formatDate(payment.dueDate)}</p>
+        ${isPdf
+          ? `<iframe src="${url}" class="proof-viewer-frame" title="${t('payments.viewProof')}"></iframe>`
+          : `<img src="${url}" alt="${t('payments.viewProof')}" class="proof-viewer-img" />`}
+      </div>
+      <div class="modal-footer">
+        <a href="${url}" target="_blank" rel="noopener noreferrer" class="btn btn-outline">${t('common.openNewTab')}</a>
+        <button type="button" class="btn btn-primary modal-close-footer">${t('common.cancel')}</button>
+      </div>
+    </div>`;
+  container.appendChild(modal);
+  const close = () => modal.remove();
+  modal.querySelector('.modal-close').onclick = close;
+  modal.querySelector('.modal-close-footer').onclick = close;
+  modal.onclick = (e) => { if (e.target === modal) close(); };
+}
+
 export function showPaymentProofModal(container, payment, onSubmit) {
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
@@ -637,7 +667,7 @@ export function showPaymentProofModal(container, payment, onSubmit) {
       <div class="modal-header"><h3>${t('modal.proofTitle')}</h3><button type="button" class="modal-close">&times;</button></div>
       <div class="modal-body">
         <p class="field-hint">${t('modal.proofHint')}</p>
-        <div class="form-group"><label>${t('common.amount')}: ${formatCurrency(payment.amount)} — ${getExpenseTypeLabel(payment.type)}</label></div>
+        <div class="form-group"><label>${getPaymentDisplayName(payment)} — ${formatCurrency(payment.amount)}</label></div>
         <div class="form-group"><input type="file" id="proof-file" accept="image/*,application/pdf" required /></div>
         <div id="proof-error" class="alert alert-warning" style="display:none;margin-top:0.5rem"></div>
       </div>
