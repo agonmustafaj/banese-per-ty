@@ -41,6 +41,7 @@ export async function initAuth() {
   const { data: { session } } = await supabase.auth.getSession();
   if (session?.user) {
     try {
+      await completeOAuthSignup();
       cachedUser = await fetchProfile(session.user.id);
     } catch (_) {
       cachedUser = null;
@@ -49,9 +50,10 @@ export async function initAuth() {
     cachedUser = null;
   }
 
-  supabase.auth.onAuthStateChange(async (_event, session) => {
+  supabase.auth.onAuthStateChange(async (event, session) => {
     if (session?.user) {
       try {
+        if (event === 'SIGNED_IN') await completeOAuthSignup();
         cachedUser = await fetchProfile(session.user.id);
       } catch (_) {
         cachedUser = null;
@@ -60,6 +62,87 @@ export async function initAuth() {
       cachedUser = null;
     }
   });
+}
+
+function oauthRedirectUrl() {
+  return `${window.location.origin}${window.location.pathname}${window.location.search}`;
+}
+
+export async function completeOAuthSignup() {
+  const pendingRole = sessionStorage.getItem('banese_oauth_role');
+  if (!pendingRole) return null;
+
+  sessionStorage.removeItem('banese_oauth_role');
+  const supabase = getSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const profile = await fetchProfile(user.id);
+  const { data: profileRow } = await supabase
+    .from('profiles')
+    .select('created_at')
+    .eq('id', user.id)
+    .single();
+
+  const isNewUser = profileRow?.created_at
+    && (Date.now() - new Date(profileRow.created_at).getTime() < 5 * 60 * 1000);
+
+  const fullName = user.user_metadata?.full_name
+    || user.user_metadata?.name
+    || profile.fullName
+    || user.email?.split('@')[0]
+    || '';
+
+  const updates = {};
+  if (isNewUser && ['qiradhënësi', 'qiramarrësi'].includes(pendingRole) && profile.role !== pendingRole) {
+    updates.role = pendingRole;
+  }
+  if (!profile.fullName && fullName) {
+    updates.fullName = fullName;
+  }
+  if (!profile.email && user.email) {
+    updates.email = user.email;
+  }
+
+  if (!Object.keys(updates).length) {
+    cachedUser = profile;
+    return profile;
+  }
+
+  const updated = await updateProfileSupabase(user.id, updates);
+  await supabase.auth.updateUser({
+    data: {
+      full_name: updated.fullName,
+      role: updated.role,
+    },
+  });
+  await clearAuditLog();
+  cachedUser = updated;
+  return updated;
+}
+
+export async function signInWithGoogle({ role } = {}) {
+  try {
+    requireSupabase();
+    const supabase = getSupabase();
+    if (role) {
+      sessionStorage.setItem('banese_oauth_role', role);
+    } else {
+      sessionStorage.removeItem('banese_oauth_role');
+    }
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: oauthRedirectUrl(),
+        queryParams: { prompt: 'select_account' },
+      },
+    });
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message || 'Gabim gjatë lidhjes me Google.' };
+  }
 }
 
 export async function getCurrentUser() {
@@ -99,7 +182,7 @@ export async function login(email, password) {
   });
 }
 
-export async function register({ fullName, email, password, role, userType, campusId }) {
+export async function register({ fullName, email, password, role }) {
   const REGISTER_ROLES = ['qiradhënësi', 'qiramarrësi'];
   if (!REGISTER_ROLES.includes(role)) {
     return { success: false, error: 'Zgjidhni rolin: Qeradhënës ose Qeramarrës.' };
@@ -117,8 +200,8 @@ export async function register({ fullName, email, password, role, userType, camp
         data: {
           full_name: fullName.trim(),
           role,
-          user_type: userType || 'employed',
-          campus_id: campusId || '',
+          user_type: 'employed',
+          campus_id: '',
         },
       },
     });

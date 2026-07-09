@@ -92,6 +92,8 @@ const translations = {
     'auth.noAccount': 'Nuk ke llogari?',
     'auth.backLogin': '← Kthehu te kyçja',
     'auth.emailPlaceholder': 'emaili-juaj@email.com',
+    'auth.or': 'ose',
+    'auth.continueGoogle': 'Vazhdo me Google',
 
     'welcome.landlord': 'Paneli i Qeradhënësit',
     'welcome.tenant': 'Paneli i Qeramarrësit',
@@ -380,6 +382,8 @@ const translations = {
     'auth.noAccount': "Don't have an account?",
     'auth.backLogin': '← Back to login',
     'auth.emailPlaceholder': 'your-email@email.com',
+    'auth.or': 'or',
+    'auth.continueGoogle': 'Continue with Google',
 
     'welcome.landlord': 'Landlord Dashboard',
     'welcome.tenant': 'Tenant Dashboard',

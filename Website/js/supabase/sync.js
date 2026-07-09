@@ -247,6 +247,7 @@ export async function updateProfileSupabase(userId, updates) {
     address: updates.address,
     user_type: updates.userType,
     campus_id: updates.campusId,
+    role: updates.role,
   };
   Object.keys(row).forEach((k) => row[k] === undefined && delete row[k]);
 

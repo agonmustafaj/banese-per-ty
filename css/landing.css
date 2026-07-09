@@ -612,6 +612,27 @@ body.nav-menu-open { overflow: hidden; }
 .footer-col h4 { color: #fff; font-size: 0.9375rem; margin-bottom: 0.9rem; }
 .footer-col a { display: block; color: #94a3b8; margin-bottom: 0.55rem; font-size: 0.9375rem; }
 .footer-col a:hover { color: #fff; }
+
+.footer-contact-row {
+  margin-top: 0;
+  font-size: 0.9375rem;
+  color: #94a3b8;
+  line-height: 1.6;
+}
+
+.footer-contact-email {
+  display: inline !important;
+  margin-bottom: 0 !important;
+  color: var(--primary) !important;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.footer-contact-email:hover {
+  color: #fff !important;
+}
 .footer-bottom {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   padding: 1.3rem 0;
