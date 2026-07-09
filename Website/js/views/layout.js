@@ -285,39 +285,74 @@ export function renderAppShell(user, page, content, unreadCount = 0) {
   const title = getPageTitle(role, page);
   const subPages = ['add-property', 'search', 'payments', 'contract', 'favorites', 'expenses', 'approvals', 'notifications'];
 
-  return `
+  if (!subPages.includes(page)) {
+    return `
     <div class="app-shell">
-      ${!subPages.includes(page) ? `
-        <header class="top-header">
+      <header class="top-header">
+        <div class="header-bar">
           <div class="header-left">
-            <h1>${title}</h1>
+            <h1 class="page-title">${title}</h1>
             <span class="user-role-badge">${getRoleLabel(role)}</span>
           </div>
-          <nav class="top-nav">
-            ${navItems.map((item) => `
-              <button class="${page === item.id ? 'active' : ''}" data-page="${item.id}">
-                ${item.icon} ${item.label}
-                ${item.id === 'notifications' && unreadCount > 0 ? `<span class="nav-badge">${unreadCount}</span>` : ''}
-              </button>
-            `).join('')}
-            <button class="logout-link" id="logout-btn">${icons.login} Dil</button>
-          </nav>
-        </header>
-      ` : `
-        <header class="top-header sub-page-header">
-          <span class="user-role-badge">${user.fullName} · ${getRoleLabel(role)}</span>
-          <button class="logout-link" id="logout-btn">Dil nga Llogaria</button>
-        </header>
-      `}
+          <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Hap menynë" aria-expanded="false" aria-controls="top-nav">
+            <span class="nav-toggle-bar"></span>
+            <span class="nav-toggle-bar"></span>
+            <span class="nav-toggle-bar"></span>
+          </button>
+        </div>
+        <nav class="top-nav" id="top-nav">
+          ${navItems.map((item) => `
+            <button class="${page === item.id ? 'active' : ''}" data-page="${item.id}">
+              ${item.icon} ${item.label}
+              ${item.id === 'notifications' && unreadCount > 0 ? `<span class="nav-badge">${unreadCount}</span>` : ''}
+            </button>
+          `).join('')}
+          <button class="logout-link" id="logout-btn">${icons.login} Dil</button>
+        </nav>
+      </header>
+      <main class="page-content">${content}</main>
+    </div>`;
+  }
+
+  return `
+    <div class="app-shell">
+      <header class="top-header sub-page-header">
+        <div class="header-left sub-header-left">
+          <span class="user-role-badge user-role-badge--sub">${user.fullName} · ${getRoleLabel(role)}</span>
+        </div>
+        <button class="logout-link logout-link--compact" id="logout-btn">Dil</button>
+      </header>
       <main class="page-content">${content}</main>
     </div>`;
 }
 
 export function attachShellEvents(container, onNavigate, onLogout) {
-  container.querySelectorAll('[data-page]').forEach((btn) => {
-    btn.addEventListener('click', () => onNavigate(btn.dataset.page));
+  const navToggle = container.querySelector('#nav-toggle');
+  const topNav = container.querySelector('#top-nav');
+
+  function setNavOpen(isOpen) {
+    if (!navToggle || !topNav) return;
+    topNav.classList.toggle('nav-open', isOpen);
+    navToggle.classList.toggle('is-open', isOpen);
+    navToggle.setAttribute('aria-expanded', String(isOpen));
+    document.body.classList.toggle('nav-menu-open', isOpen);
+  }
+
+  navToggle?.addEventListener('click', () => {
+    setNavOpen(!topNav.classList.contains('nav-open'));
   });
-  container.querySelector('#logout-btn')?.addEventListener('click', onLogout);
+
+  container.querySelectorAll('[data-page]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      setNavOpen(false);
+      onNavigate(btn.dataset.page);
+    });
+  });
+
+  container.querySelector('#logout-btn')?.addEventListener('click', () => {
+    setNavOpen(false);
+    onLogout();
+  });
 }
 
 export function renderBackButton(label = 'Kthehu', page = 'home') {

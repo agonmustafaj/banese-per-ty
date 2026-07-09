@@ -27,7 +27,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="css/landing.css?v=6" />
+<link rel="stylesheet" href="css/landing.css?v=7" />
 
 <script type="application/ld+json">
 {
@@ -128,26 +128,50 @@
         <p data-i18n="steps.subtitle">Nga kërkimi deri te kontrata e nënshkruar — katër hapa të thjeshtë.</p>
       </div>
       <div class="steps-grid">
-        <div class="step-card">
-          <div class="step-num">01</div>
+        <article class="step-card" data-step="1">
+          <div class="step-card__accent" aria-hidden="true"></div>
+          <div class="step-card__head">
+            <span class="step-card__icon step-card__icon--search" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+            <span class="step-card__num">01</span>
+          </div>
           <h3 data-i18n="step1.title">Kërko & Filtro</h3>
           <p data-i18n="step1.desc">Filtro banesat sipas qytetit, çmimit, numrit të dhomave dhe komoditeteve, kudo në Kosovë, për të gjetur atë që të përshtatet.</p>
-        </div>
-        <div class="step-card">
-          <div class="step-num">02</div>
+        </article>
+        <article class="step-card" data-step="2">
+          <div class="step-card__accent" aria-hidden="true"></div>
+          <div class="step-card__head">
+            <span class="step-card__icon step-card__icon--contract" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </span>
+            <span class="step-card__num">02</span>
+          </div>
           <h3 data-i18n="step2.title">Kërko Kontratë</h3>
           <p data-i18n="step2.desc">Dërgo kërkesë direkt te qeradhënësi. Ai merr njoftim të menjëhershëm dhe përgjigjet brenda platformës.</p>
-        </div>
-        <div class="step-card">
-          <div class="step-num">03</div>
+        </article>
+        <article class="step-card" data-step="3">
+          <div class="step-card__accent" aria-hidden="true"></div>
+          <div class="step-card__head">
+            <span class="step-card__icon step-card__icon--sign" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </span>
+            <span class="step-card__num">03</span>
+          </div>
           <h3 data-i18n="step3.title">Nënshkruaj Digjitalisht</h3>
           <p data-i18n="step3.desc">Kontrata gjenerohet automatikisht në PDF, specifikon qartë palët dhe kërkon nënshkrim elektronik për t'u aktivizuar.</p>
-        </div>
-        <div class="step-card">
-          <div class="step-num">04</div>
+        </article>
+        <article class="step-card" data-step="4">
+          <div class="step-card__accent" aria-hidden="true"></div>
+          <div class="step-card__head">
+            <span class="step-card__icon step-card__icon--pay" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            </span>
+            <span class="step-card__num">04</span>
+          </div>
           <h3 data-i18n="step4.title">Menaxho Pagesat</h3>
           <p data-i18n="step4.desc">Ngarko dëshminë e pagesës — sistemi e verifikon automatikisht ose ia dërgon qeradhënësit për miratim.</p>
-        </div>
+        </article>
       </div>
     </div>
   </section>

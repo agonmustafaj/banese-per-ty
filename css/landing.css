@@ -365,21 +365,135 @@ img { max-width: 100%; display: block; }
 .section-head .eyebrow { margin-bottom: 0; }
 
 /* ── Steps ── */
+#si-funksionon {
+  position: relative;
+  overflow: hidden;
+}
+
+#si-funksionon::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 50% at 10% 0%, rgba(56, 189, 248, 0.09), transparent 60%),
+    radial-gradient(ellipse 60% 45% at 95% 100%, rgba(37, 99, 235, 0.07), transparent 55%);
+  pointer-events: none;
+}
+
+#si-funksionon .container { position: relative; z-index: 1; }
+
 .steps-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 1rem;
+  align-items: stretch;
 }
+
 .step-card {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1.8rem;
-  box-shadow: var(--shadow);
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(155deg, #ffffff 0%, #f4fbff 100%);
+  border: 1px solid rgba(56, 189, 248, 0.14);
+  border-radius: 22px;
+  padding: 1.6rem 1.5rem 1.5rem;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+  transition:
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.4s ease,
+    opacity 0.4s ease,
+    border-color 0.4s ease;
+  overflow: hidden;
 }
-.step-num { font-size: 1.6rem; font-weight: 800; color: var(--primary-light); -webkit-text-stroke: 1px var(--primary); }
-.step-card h3 { margin-top: 0.8rem; font-size: 1.125rem; color: var(--dark); }
-.step-card p { margin-top: 0.5rem; color: var(--text-muted); font-size: 0.9375rem; }
+
+.step-card__accent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary), var(--blue));
+  opacity: 0.55;
+  transition: opacity 0.35s ease, height 0.35s ease;
+}
+
+.step-card[data-step="1"] .step-card__accent { background: linear-gradient(90deg, #38bdf8, #0ea5e9); }
+.step-card[data-step="2"] .step-card__accent { background: linear-gradient(90deg, #60a5fa, #2563eb); }
+.step-card[data-step="3"] .step-card__accent { background: linear-gradient(90deg, #34d399, #059669); }
+.step-card[data-step="4"] .step-card__accent { background: linear-gradient(90deg, #38bdf8, #0284c7); }
+
+.step-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.step-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  flex-shrink: 0;
+}
+
+.step-card__icon svg { width: 22px; height: 22px; }
+
+.step-card__icon--search { background: #e0f2fe; color: #0284c7; }
+.step-card__icon--contract { background: #dbeafe; color: #1d4ed8; }
+.step-card__icon--sign { background: #d1fae5; color: #047857; }
+.step-card__icon--pay { background: #e0f2fe; color: #0369a1; }
+
+.step-card__num {
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(56, 189, 248, 0.35);
+  user-select: none;
+}
+
+.step-card h3 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--dark);
+  letter-spacing: -0.01em;
+}
+
+.step-card p {
+  margin-top: 0.55rem;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .steps-grid:has(.step-card:hover) .step-card:not(:hover) {
+    filter: blur(2.5px);
+    opacity: 0.88;
+    transform: scale(0.985);
+  }
+
+  .step-card:hover {
+    transform: translateY(-6px) scale(1.02);
+    border-color: rgba(56, 189, 248, 0.45);
+    box-shadow: 0 22px 48px rgba(56, 189, 248, 0.18);
+    z-index: 2;
+  }
+
+  .step-card:hover .step-card__accent {
+    opacity: 1;
+    height: 5px;
+  }
+
+  .step-card:hover .step-card__num {
+    -webkit-text-stroke-color: rgba(56, 189, 248, 0.65);
+  }
+}
 
 /* ── Two column persona ── */
 .two-col {
@@ -666,7 +780,21 @@ body.nav-menu-open { overflow: hidden; }
   .card-2 { align-self: flex-end; }
   .card-3 { align-self: flex-start; margin-left: 2rem; }
 
-  .steps-grid { grid-template-columns: repeat(4, 1fr); gap: 1.5rem; }
+  .steps-grid { grid-template-columns: repeat(4, 1fr); gap: 1.25rem; }
+
+  .step-card::after {
+    content: '';
+    position: absolute;
+    top: 2.4rem;
+    right: -0.65rem;
+    width: 1.25rem;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(56, 189, 248, 0.45), transparent);
+    z-index: 0;
+  }
+
+  .step-card:last-child::after { display: none; }
+
   .two-col { grid-template-columns: 1fr 1fr; gap: 1.75rem; }
   .persona-card { text-align: left; align-items: flex-start; }
   .persona-card .btn { width: auto; }

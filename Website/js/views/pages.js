@@ -436,6 +436,7 @@ export function renderPaymentsPage(period = {}) {
     </div>
     <button class="btn btn-outline btn-sm" id="export-payments-pdf" style="margin-bottom:1rem">Shkarko PDF</button>
     ${payments.length === 0 ? '<div class="empty-state"><p>Nuk ka shpenzime për këtë periudhë.</p></div>' : `
+      <div class="table-responsive">
       <table>
         <thead><tr><th>Data</th><th>Lloji</th><th>Shuma</th><th>Statusi</th><th>Veprime</th></tr></thead>
         <tbody>${payments.map((p) => `
@@ -457,7 +458,8 @@ export function renderPaymentsPage(period = {}) {
             </td>
           </tr>`).join('')}
         </tbody>
-      </table>`}`;
+      </table>
+      </div>`}`;
 }
 
 export function showPaymentProofModal(container, payment, onSubmit) {
