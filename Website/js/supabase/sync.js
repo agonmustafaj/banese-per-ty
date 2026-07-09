@@ -95,10 +95,6 @@ export async function loadAllFromSupabase() {
     notifications,
     agencyRequests,
     auditLog,
-    loginAttempts: {},
-    blockedAccounts: {},
-    pending2fa: {},
-    passwordResetTokens: [],
     adminStats: {
       totalProperties: properties.length,
       activeUsers: users.filter((u) => u.role !== 'administrator').length,

@@ -1,9 +1,7 @@
 import {
   login,
   register,
-  verify2fa,
   requestPasswordReset,
-  resetPassword,
 } from '../auth.js';
 import { getRoleLabel } from '../data.js';
 import { icons } from '../icons.js';
@@ -12,9 +10,6 @@ export function renderLogin(onNavigate) {
   let mode = 'login';
   let selectedRole = 'qiradhënësi';
   let selectedUserType = 'employed';
-  let pending2faEmail = '';
-  let pending2faRemember = false;
-  let resetToken = '';
 
   function roleSelectorHtml() {
     return `
@@ -51,33 +46,16 @@ export function renderLogin(onNavigate) {
     const titles = {
       login: 'Kyçu në Llogari',
       register: 'Regjistrohu',
-      '2fa': 'Verifikim Shtesë (2FA)',
       forgot: 'Harrove Fjalëkalimin?',
-      reset: 'Rivendos Fjalëkalimin',
     };
 
     let body = '';
-    if (mode === '2fa') {
+    if (mode === 'forgot') {
       body = `
-        <p class="field-hint">Kodi u dërgua te email (simuluar te njoftimet). Vlen 5 minuta.</p>
+        <p class="field-hint">Vendosni email-in e llogarisë. Do të merrni një link për rivendosjen e fjalëkalimit.</p>
         <form id="auth-form">
-          <div class="form-group"><label>Kodi 6-shifror</label><input name="code" required pattern="[0-9]{6}" maxlength="6" placeholder="123456" /></div>
-          <button type="submit" class="btn btn-primary btn-block btn-lg">Verifiko</button>
-        </form>`;
-    } else if (mode === 'forgot') {
-      body = `
-        <p class="field-hint">Vendosni email-in. Do të merrni token rivendosjeje (simuluar).</p>
-        <form id="auth-form">
-          <div class="form-group"><label>Email</label><input type="email" name="email" required /></div>
-          <button type="submit" class="btn btn-primary btn-block">Dërgo Udhëzimet</button>
-        </form>`;
-    } else if (mode === 'reset') {
-      body = `
-        <form id="auth-form">
-          <div class="form-group"><label>Token rivendosjeje</label><input name="token" required value="${resetToken}" /></div>
-          <div class="form-group"><label>Fjalëkalimi i ri</label><input type="password" name="newPassword" required minlength="4" /></div>
-          <div class="form-group"><label>Konfirmo</label><input type="password" name="confirmPassword" required minlength="4" /></div>
-          <button type="submit" class="btn btn-primary btn-block">Rivendos</button>
+          <div class="form-group"><label>Email</label><input type="email" name="email" required placeholder="emaili-juaj@email.com" /></div>
+          <button type="submit" class="btn btn-primary btn-block">Dërgo Linkun</button>
         </form>`;
     } else {
       body = `
@@ -87,11 +65,10 @@ export function renderLogin(onNavigate) {
             ${roleSelectorHtml()}
             ${userTypeHtml()}
           ` : ''}
-          <div class="form-group"><label>${icons.mail} Email</label><input type="email" name="email" required placeholder="email@example.com" /></div>
-          <div class="form-group"><label>${icons.lock} Fjalëkalimi</label><input type="password" name="password" required minlength="4" /></div>
+          <div class="form-group"><label>${icons.mail} Email</label><input type="email" name="email" required placeholder="emaili-juaj@email.com" /></div>
+          <div class="form-group"><label>${icons.lock} Fjalëkalimi</label><input type="password" name="password" required minlength="6" /></div>
           ${mode === 'login' ? `
             <div class="form-row">
-              <label class="checkbox-label"><input type="checkbox" name="remember" /> Më mbaj të kyçur</label>
               <a href="#" id="forgot-link">Harrove fjalëkalimin?</a>
             </div>` : ''}
           <button type="submit" class="btn btn-primary btn-block btn-lg">${mode === 'register' ? 'Regjistrohu' : 'Kyçu'}</button>
@@ -116,11 +93,8 @@ export function renderLogin(onNavigate) {
           <div class="auth-card-body">
             <div id="auth-alert"></div>
             ${body}
-            ${mode !== 'login' && mode !== 'register' ? `<a href="#" id="back-login" class="auth-back">← Kthehu te kyçja</a>` : ''}
+            ${mode === 'forgot' ? `<a href="#" id="back-login" class="auth-back">← Kthehu te kyçja</a>` : ''}
           </div>
-        </div>
-        <div class="demo-notice">
-          <strong>Llogaritë demo:</strong> qeradhenes@example.com / 123456 · qeramarreses@example.com / 123456 · admin@example.com / 123456
         </div>
       </div>`;
   }
@@ -170,36 +144,13 @@ export function renderLogin(onNavigate) {
       e.preventDefault();
       const fd = new FormData(e.target);
 
-      if (mode === '2fa') {
-        const result = await verify2fa(pending2faEmail, fd.get('code'), pending2faRemember);
-        if (result.success) onNavigate('home');
-        else showAlert(container, 'error', result.error);
-        return;
-      }
-
       if (mode === 'forgot') {
         const result = await requestPasswordReset(fd.get('email'));
-        if (result.demoToken) resetToken = result.demoToken;
-        showAlert(container, 'info', `${result.message}${result.demoToken ? ` Token: ${result.demoToken}` : ''}`);
-        setTimeout(() => {
-          mode = 'reset';
-          container.innerHTML = render();
-          attachEvents(container);
-        }, 1500);
-        return;
-      }
-
-      if (mode === 'reset') {
-        if (fd.get('newPassword') !== fd.get('confirmPassword')) {
-          showAlert(container, 'error', 'Fjalëkalimet nuk përputhen.');
-          return;
-        }
-        const result = await resetPassword(fd.get('token'), fd.get('newPassword'));
         if (result.success) {
-          showAlert(container, 'success', 'Fjalëkalimi u rivendos! Kyçuni tani.');
-          mode = 'login';
-          setTimeout(() => { container.innerHTML = render(); attachEvents(container); }, 1200);
-        } else showAlert(container, 'error', result.error);
+          showAlert(container, 'success', result.message);
+        } else {
+          showAlert(container, 'error', result.error);
+        }
         return;
       }
 
@@ -219,22 +170,17 @@ export function renderLogin(onNavigate) {
           if (result.needsConfirmation) {
             showAlert(container, 'info', result.message);
             mode = 'login';
-            setTimeout(() => { container.innerHTML = render(); attachEvents(container); }, 2000);
+            setTimeout(() => { container.innerHTML = render(); attachEvents(container); }, 2500);
           } else {
             onNavigate('home');
           }
-        } else showAlert(container, 'error', result.error);
+        } else {
+          showAlert(container, 'error', result.error);
+        }
       } else {
-        const result = await login(email, password, fd.get('remember') === 'on');
+        const result = await login(email, password);
         if (result.success) onNavigate('home');
-        else if (result.requires2fa) {
-          pending2faEmail = result.email;
-          pending2faRemember = fd.get('remember') === 'on';
-          mode = '2fa';
-          container.innerHTML = render();
-          attachEvents(container);
-          showAlert(container, 'info', `Kodi 2FA u dërgua (demo: ${result.demoCode}). Kontrolloni njoftimet pas kyçjes.`);
-        } else showAlert(container, 'error', result.error);
+        else showAlert(container, 'error', result.error);
       }
     });
   }
