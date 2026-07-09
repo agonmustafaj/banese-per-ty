@@ -6,6 +6,7 @@ import {
   updateProfile,
   changePassword,
   deleteAccount,
+  deleteUserAsAdmin,
   initAuth,
 } from './auth.js';
 import { loadDataAsync } from './data.js';
@@ -208,6 +209,25 @@ function attachPageEvents(page, user) {
         if (!result.success) { alert(result.error); render(); return; }
         alert(approved ? t('alert.propertyApproved') : t('alert.propertyRejected'));
         render();
+      });
+    });
+  }
+
+  if (page === 'users' && user.role === 'administrator') {
+    app.querySelectorAll('.admin-delete-user-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const name = btn.dataset.name || '';
+        if (!confirm(t('admin.deleteUserConfirm', { name }))) return;
+        const reason = prompt(t('admin.deleteUserReason'));
+        if (!reason?.trim()) return;
+        const result = await deleteUserAsAdmin(btn.dataset.id, reason);
+        if (result.success) {
+          alert(t('admin.userDeleted'));
+          await loadDataAsync();
+          render();
+        } else {
+          alert(result.error);
+        }
       });
     });
   }

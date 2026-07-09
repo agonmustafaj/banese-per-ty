@@ -152,45 +152,51 @@ export function renderLogin(onNavigate, onLangChange) {
     container.querySelector('#auth-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const fd = new FormData(e.target);
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
 
-      if (mode === 'forgot') {
-        const result = await requestPasswordReset(fd.get('email'));
-        if (result.success) {
-          showAlert(container, 'success', result.message);
-        } else {
-          showAlert(container, 'error', result.error);
-        }
-        return;
-      }
-
-      const email = fd.get('email');
-      const password = fd.get('password');
-
-      if (mode === 'register') {
-        const result = await register({
-          fullName: fd.get('fullName'),
-          email,
-          password,
-          role: selectedRole,
-        });
-        if (result.success) {
-          if (result.needsConfirmation) {
-            showAlert(container, 'info', result.message);
-            mode = 'login';
-            setTimeout(() => { container.innerHTML = render(); attachEvents(container); }, 2500);
+      try {
+        if (mode === 'forgot') {
+          const result = await requestPasswordReset(fd.get('email'));
+          if (result.success) {
+            showAlert(container, 'success', result.message);
           } else {
-            const { entry } = parseAppUrl();
-            onNavigate(resolvePageAfterAuth(result.user, entry, null));
+            showAlert(container, 'error', result.error);
+          }
+          return;
+        }
+
+        const email = fd.get('email');
+        const password = fd.get('password');
+
+        if (mode === 'register') {
+          const result = await register({
+            fullName: fd.get('fullName'),
+            email,
+            password,
+            role: selectedRole,
+          });
+          if (result.success) {
+            if (result.needsConfirmation) {
+              showAlert(container, 'info', result.message);
+              mode = 'login';
+              setTimeout(() => { container.innerHTML = render(); attachEvents(container); }, 2500);
+            } else {
+              const { entry } = parseAppUrl();
+              onNavigate(resolvePageAfterAuth(result.user, entry, null));
+            }
+          } else {
+            showAlert(container, 'error', result.error);
           }
         } else {
-          showAlert(container, 'error', result.error);
+          const result = await login(email, password);
+          if (result.success) {
+            const { entry } = parseAppUrl();
+            onNavigate(resolvePageAfterAuth(result.user, entry, null));
+          } else showAlert(container, 'error', result.error);
         }
-      } else {
-        const result = await login(email, password);
-        if (result.success) {
-          const { entry } = parseAppUrl();
-          onNavigate(resolvePageAfterAuth(result.user, entry, null));
-        } else showAlert(container, 'error', result.error);
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
       }
     });
   }

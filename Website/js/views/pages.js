@@ -220,12 +220,14 @@ export function renderAdminApprovalsPage() {
 }
 
 export function renderAdminUsersPage() {
+  const admin = getCurrentUserSync();
   const data = loadData();
   const users = [...data.users].sort((a, b) => (a.fullName || '').localeCompare(b.fullName || '', 'sq'));
 
   return `
     ${renderBackButton()}
     <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1rem">${t('page.users')}</h2>
+    <p class="field-hint" style="margin-bottom:1rem">${t('admin.deleteUserHint')}</p>
     ${users.length === 0 ? `<div class="empty-state"><p>${t('admin.noUsers')}</p></div>` : `
       <div class="table-wrap">
         <table class="data-table">
@@ -234,15 +236,24 @@ export function renderAdminUsersPage() {
               <th>${t('common.name')}</th>
               <th>${t('common.email')}</th>
               <th>${t('common.role')}</th>
+              <th>${t('common.actions')}</th>
             </tr>
           </thead>
           <tbody>
-            ${users.map((u) => `
+            ${users.map((u) => {
+              const canDelete = u.id !== admin?.id && u.role !== 'administrator';
+              return `
               <tr>
                 <td>${u.fullName || '—'}</td>
                 <td>${u.email || '—'}</td>
                 <td><span class="user-role-badge">${getRoleLabel(u.role)}</span></td>
-              </tr>`).join('')}
+                <td>
+                  ${canDelete
+                    ? `<button type="button" class="btn btn-danger btn-sm admin-delete-user-btn" data-id="${u.id}" data-name="${(u.fullName || u.email || '').replace(/"/g, '&quot;')}">${t('admin.deleteUser')}</button>`
+                    : `<span class="sub-status">${u.id === admin?.id ? t('admin.you') : '—'}</span>`}
+                </td>
+              </tr>`;
+            }).join('')}
           </tbody>
         </table>
       </div>`}`;

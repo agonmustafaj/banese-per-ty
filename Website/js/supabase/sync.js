@@ -275,6 +275,15 @@ export async function deleteOwnAccountSupabase() {
   if (error) throw error;
 }
 
+export async function deleteUserByAdminSupabase(userId, reason) {
+  const supabase = getSupabase();
+  const { error } = await supabase.rpc('admin_delete_user', {
+    target_user_id: userId,
+    reason,
+  });
+  if (error) throw error;
+}
+
 export function subscribeNotifications(userId, onInsert) {
   const supabase = getSupabase();
   if (!supabase || !userId) return () => {};

@@ -2,7 +2,9 @@ import { loadData, saveData } from './data.js';
 import { addAuditLog, clearAuditLog } from './services-core.js';
 import { isSupabaseEnabled } from './config.js';
 import { getSupabase } from './supabase/client.js';
-import { fetchProfile, updateProfileSupabase, deleteOwnAccountSupabase } from './supabase/sync.js';
+import { fetchProfile, updateProfileSupabase, deleteOwnAccountSupabase, deleteUserByAdminSupabase } from './supabase/sync.js';
+import { checkEmailRateLimit, recordEmailAttempt, isEmailRateLimitError } from './auth-rate-limit.js';
+import { t } from './i18n.js';
 
 let cachedUser = null;
 
@@ -162,6 +164,23 @@ export function getCurrentUserSync() {
   return cachedUser;
 }
 
+function formatAuthError(error, waitSeconds) {
+  if (waitSeconds) {
+    return t('auth.error.rateLimitWait', { seconds: waitSeconds });
+  }
+  const msg = error?.message || String(error || '');
+  if (isEmailRateLimitError(msg)) {
+    return t('auth.error.rateLimit');
+  }
+  if (msg.includes('Invalid login')) {
+    return 'Email ose fjalëkalim i pasaktë.';
+  }
+  if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already been registered')) {
+    return t('auth.error.userExists');
+  }
+  return msg || t('auth.error.generic');
+}
+
 export async function login(email, password) {
   return withRetry(async () => {
     requireSupabase();
@@ -189,14 +208,20 @@ export async function register({ fullName, email, password, role }) {
   }
 
   const normalizedEmail = email.toLowerCase().trim();
+  const limit = checkEmailRateLimit('register', normalizedEmail);
+  if (!limit.allowed) {
+    return { success: false, error: formatAuthError(null, limit.waitSeconds) };
+  }
 
-  return withRetry(async () => {
+  try {
     requireSupabase();
     const supabase = getSupabase();
+    const redirectTo = oauthRedirectUrl();
     const { data, error } = await supabase.auth.signUp({
       email: normalizedEmail,
       password,
       options: {
+        emailRedirectTo: redirectTo,
         data: {
           full_name: fullName.trim(),
           role,
@@ -205,32 +230,58 @@ export async function register({ fullName, email, password, role }) {
         },
       },
     });
-    if (error) return { success: false, error: error.message };
+
+    if (error) {
+      if (isEmailRateLimitError(error.message)) {
+        recordEmailAttempt('register', normalizedEmail, true);
+      }
+      return { success: false, error: formatAuthError(error) };
+    }
+
+    recordEmailAttempt('register', normalizedEmail);
 
     if (!data.session) {
       return {
         success: true,
         needsConfirmation: true,
-        message: 'Kontrolloni email-in për të konfirmuar llogarinë, pastaj kyçuni.',
+        message: t('auth.confirmEmailHint'),
       };
     }
 
     cachedUser = await fetchProfile(data.user.id);
     await clearAuditLog();
     return { success: true, user: cachedUser };
-  });
+  } catch (err) {
+    return { success: false, error: formatAuthError(err) };
+  }
 }
 
 export async function requestPasswordReset(email) {
-  requireSupabase();
-  const supabase = getSupabase();
-  const redirectTo = `${window.location.origin}${window.location.pathname}`;
-  const { error } = await supabase.auth.resetPasswordForEmail(email.toLowerCase().trim(), { redirectTo });
-  if (error) return { success: false, error: error.message };
-  return {
-    success: true,
-    message: 'Nëse email ekziston, do të merrni udhëzime për rivendosjen e fjalëkalimit.',
-  };
+  const normalizedEmail = email.toLowerCase().trim();
+  const limit = checkEmailRateLimit('reset', normalizedEmail);
+  if (!limit.allowed) {
+    return { success: false, error: formatAuthError(null, limit.waitSeconds) };
+  }
+
+  try {
+    requireSupabase();
+    const supabase = getSupabase();
+    const redirectTo = oauthRedirectUrl();
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
+    if (error) {
+      if (isEmailRateLimitError(error.message)) {
+        recordEmailAttempt('reset', normalizedEmail, true);
+      }
+      return { success: false, error: formatAuthError(error) };
+    }
+    recordEmailAttempt('reset', normalizedEmail);
+    return {
+      success: true,
+      message: t('auth.resetEmailSent'),
+    };
+  } catch (err) {
+    return { success: false, error: formatAuthError(err) };
+  }
 }
 
 export async function updateProfile(userId, updates) {
@@ -295,6 +346,36 @@ export async function deleteAccount() {
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message || 'Gabim gjatë fshirjes së llogarisë.' };
+  }
+}
+
+export async function deleteUserAsAdmin(targetUserId, reason) {
+  try {
+    requireSupabase();
+    const current = getCurrentUserSync();
+    if (current?.role !== 'administrator') {
+      return { success: false, error: 'Nuk keni të drejtë për këtë veprim.' };
+    }
+    if (current.id === targetUserId) {
+      return { success: false, error: 'Nuk mund të fshini llogarinë tuaj nga këtu.' };
+    }
+    const trimmed = reason?.trim() || '';
+    if (trimmed.length < 5) {
+      return { success: false, error: 'Shkruani arsyen e fshirjes (të paktën 5 karaktere).' };
+    }
+
+    const data = loadData();
+    const target = data.users.find((u) => u.id === targetUserId);
+    if (target?.role === 'administrator') {
+      return { success: false, error: 'Nuk mund të fshini një administrator.' };
+    }
+
+    await deleteUserByAdminSupabase(targetUserId, trimmed);
+    data.users = data.users.filter((u) => u.id !== targetUserId);
+    saveData(data);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message || 'Gabim gjatë fshirjes së përdoruesit.' };
   }
 }
 
