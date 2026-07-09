@@ -5,6 +5,7 @@ import {
   signInWithGoogle,
 } from '../auth.js';
 import { getRoleLabel } from '../data.js';
+import { getPendingContractsForTenant } from '../services.js';
 import { icons } from '../icons.js';
 import { parseAppUrl, resolvePageAfterAuth } from '../nav.js';
 import { t, renderLangSwitchHtml, attachLangSwitch } from '../i18n.js';
@@ -236,6 +237,7 @@ function getNavItems(role) {
   if (role === 'qiramarrësi') {
     return [
       { id: 'home', label: t('nav.myHome'), icon: icons.house },
+      { id: 'contract', label: t('nav.contracts'), icon: icons.doc },
       { id: 'favorites', label: t('nav.favorites'), icon: icons.heart },
       { id: 'notifications', label: t('nav.notifications'), icon: icons.bell },
       { id: 'profile', label: t('nav.profile'), icon: icons.user },
@@ -255,6 +257,17 @@ export function renderAppShell(user, page, content, unreadCount = 0) {
   const navItems = getNavItems(role);
   const title = getPageTitle(role, page);
   const subPages = ['add-property', 'search', 'payments', 'contract', 'favorites', 'expenses', 'approvals', 'users', 'notifications'];
+  const pendingContractCount = role === 'qiramarrësi' ? getPendingContractsForTenant(user.id).length : 0;
+
+  function navBadge(item) {
+    if (item.id === 'notifications' && unreadCount > 0) {
+      return `<span class="nav-badge">${unreadCount}</span>`;
+    }
+    if (item.id === 'contract' && pendingContractCount > 0) {
+      return `<span class="nav-badge nav-badge--contract">${pendingContractCount}</span>`;
+    }
+    return '';
+  }
 
   if (!subPages.includes(page)) {
     return `
@@ -278,7 +291,7 @@ export function renderAppShell(user, page, content, unreadCount = 0) {
           ${navItems.map((item) => `
             <button class="${page === item.id ? 'active' : ''}" data-page="${item.id}">
               ${item.icon} ${item.label}
-              ${item.id === 'notifications' && unreadCount > 0 ? `<span class="nav-badge">${unreadCount}</span>` : ''}
+              ${navBadge(item)}
             </button>
           `).join('')}
           <button class="logout-link" id="logout-btn">${icons.login} ${t('common.logout')}</button>

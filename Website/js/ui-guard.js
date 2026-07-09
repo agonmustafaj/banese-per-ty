@@ -80,6 +80,23 @@ export function shouldBlockAutoRender() {
   return false;
 }
 
+/** Përditëso numrin e kontratave në pritje pa rifreskuar faqen. */
+export function patchContractNavBadge(container, pendingCount) {
+  const navBtn = container?.querySelector('[data-page="contract"]');
+  if (!navBtn) return;
+  let badge = navBtn.querySelector('.nav-badge');
+  if (pendingCount > 0) {
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'nav-badge nav-badge--contract';
+      navBtn.appendChild(badge);
+    }
+    badge.textContent = String(pendingCount);
+  } else {
+    badge?.remove();
+  }
+}
+
 /** Përditëso vetëm numrin e njoftimeve pa rifreskuar faqen. */
 export function patchNotificationBadge(container, unreadCount) {
   const navBtn = container?.querySelector('[data-page="notifications"]');

@@ -377,7 +377,7 @@ export function renderNotificationsPage() {
           <div class="title">${n.type}</div>
           <div class="meta">${n.message}</div>
           <div class="request-meta">${formatLocaleString(n.sentAt)}</div>
-          ${actionPage ? `<button type="button" class="btn btn-outline btn-sm notification-open-btn" data-id="${n.id}" data-page="${actionPage}" style="margin-top:0.75rem">${t('common.view')}</button>` : ''}
+          ${actionPage ? `<button type="button" class="btn ${actionPage === 'contract' ? 'btn-blue' : 'btn-outline'} btn-sm notification-open-btn" data-id="${n.id}" data-page="${actionPage}" style="margin-top:0.75rem">${actionPage === 'contract' ? t('tenant.viewSign') : t('common.view')}</button>` : ''}
         </div>`;
     }).join('')}`;
 }

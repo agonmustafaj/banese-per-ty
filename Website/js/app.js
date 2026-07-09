@@ -55,6 +55,7 @@ import {
   processPhotos,
   markNotificationRead,
   getUnreadCount,
+  getPendingContractsForTenant,
   loadData,
 } from './services.js';
 import { downloadContractPdf, downloadPaymentsPdf } from './pdf.js';
@@ -64,6 +65,7 @@ import {
   resetUIBaseline,
   shouldBlockAutoRender,
   patchNotificationBadge,
+  patchContractNavBadge,
   runWithSubmitGuard,
 } from './ui-guard.js';
 
@@ -127,7 +129,12 @@ async function refreshInBackground() {
       await refreshDataAsync();
       dataLoadError = null;
       const user = getCurrentUserSync();
-      if (user) patchNotificationBadge(app, getUnreadCount(user.id));
+      if (user) {
+        patchNotificationBadge(app, getUnreadCount(user.id));
+        if (user.role === 'qiramarrësi') {
+          patchContractNavBadge(app, getPendingContractsForTenant(user.id).length);
+        }
+      }
     } catch (err) {
       console.error('refreshDataAsync:', err);
     } finally {
@@ -169,6 +176,13 @@ async function navigate(page) {
     syncUrlState(page);
   }
   if (await handleSessionExpiry()) return;
+  if (page === 'contract' && isAuthenticatedSync()) {
+    try {
+      await refreshDataAsync();
+    } catch (err) {
+      console.error('refreshDataAsync before contract:', err);
+    }
+  }
   await render();
 }
 
