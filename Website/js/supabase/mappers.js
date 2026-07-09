@@ -113,11 +113,13 @@ export function contractFromRow(row) {
     startDate: row.start_date,
     endDate: row.end_date,
     status: row.status,
+    contractNumber: row.contract_number ?? null,
     signedAt: row.signed_at,
     pdfGeneratedAt: row.pdf_generated_at,
     pdfUrl: row.pdf_url,
     createdAt: row.created_at,
     signature: row.signature,
+    landlordSignature: row.landlord_signature,
     partiesSummary: row.parties_summary,
   };
 }
@@ -132,11 +134,13 @@ export function contractToRow(c) {
     start_date: c.startDate,
     end_date: c.endDate,
     status: c.status,
+    contract_number: c.contractNumber ?? null,
     signed_at: c.signedAt || null,
     pdf_generated_at: c.pdfGeneratedAt || null,
     pdf_url: c.pdfUrl || null,
     created_at: c.createdAt,
     signature: c.signature || null,
+    landlord_signature: c.landlordSignature || null,
     parties_summary: c.partiesSummary || null,
   };
 }

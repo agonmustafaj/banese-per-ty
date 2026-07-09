@@ -240,6 +240,12 @@ function refreshAdminStats(data) {
   };
 }
 
+export function formatContractNumber(contract) {
+  const n = contract?.contractNumber;
+  if (typeof n === 'number' && n > 0) return String(n).padStart(5, '0');
+  return null;
+}
+
 export function generateId(prefix) {
   if (isSupabaseEnabled() && typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();

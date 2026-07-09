@@ -101,6 +101,7 @@ const translations = {
     'auth.error.userExists': 'Ky email është tashmë i regjistruar. Kyçuni ose përdorni "Harrove fjalëkalimin?".',
     'auth.error.generic': 'Gabim gjatë autentifikimit. Provoni përsëri.',
     'auth.error.googleNotEnabled': 'Hyrja me Google nuk është aktivizuar në server. Përdorni email/fjalëkalim, ose aktivizoni Google te Supabase Dashboard → Authentication → Providers.',
+    'auth.sessionExpired': 'Sesioni juaj ka skaduar pas 1 ore. Kyçuni përsëri.',
 
     'app.loading': 'Duke u ngarkuar…',
     'app.loadError': 'Nuk u ngarkuan të dhënat. Kontrolloni lidhjen dhe rifreskoni faqen.',
@@ -287,6 +288,8 @@ const translations = {
     'modal.startDate': 'Fillimi',
     'modal.endDate': 'Mbarimi',
     'modal.generateSend': 'Gjenero PDF & Dërgo',
+    'modal.landlordSignatureTitle': 'Nënshkrimi i Qeradhënësit',
+    'modal.landlordSignatureHint': 'Nënshkruani digjitalisht para se të dërgoni kontratën te qeramarrësi.',
 
     'modal.photoTitle': 'Foto e pronës',
 
@@ -419,6 +422,7 @@ const translations = {
     'auth.error.userExists': 'This email is already registered. Log in or use "Forgot password?".',
     'auth.error.generic': 'Authentication error. Please try again.',
     'auth.error.googleNotEnabled': 'Google sign-in is not enabled on the server. Use email/password, or enable Google in Supabase Dashboard → Authentication → Providers.',
+    'auth.sessionExpired': 'Your session expired after 1 hour. Please log in again.',
 
     'app.loading': 'Loading…',
     'app.loadError': 'Could not load data. Check your connection and refresh the page.',
@@ -605,6 +609,8 @@ const translations = {
     'modal.startDate': 'Start',
     'modal.endDate': 'End',
     'modal.generateSend': 'Generate PDF & Send',
+    'modal.landlordSignatureTitle': 'Landlord Signature',
+    'modal.landlordSignatureHint': 'Sign digitally before sending the contract to the tenant.',
 
     'modal.photoTitle': 'Property photo',
 

@@ -4,6 +4,7 @@ import { isSupabaseEnabled } from './config.js';
 import { getSupabase } from './supabase/client.js';
 import { fetchProfile, updateProfileSupabase, deleteOwnAccountSupabase, deleteUserByAdminSupabase } from './supabase/sync.js';
 import { checkEmailRateLimit, recordEmailAttempt, isEmailRateLimitError } from './auth-rate-limit.js';
+import { markSessionStart, clearSessionStart, syncSessionStartFromSupabase } from './auth-session.js';
 import { t } from './i18n.js';
 
 let cachedUser = null;
@@ -42,6 +43,7 @@ export async function initAuth() {
   const supabase = getSupabase();
   const { data: { session } } = await supabase.auth.getSession();
   if (session?.user) {
+    syncSessionStartFromSupabase(session);
     try {
       await completeOAuthSignup();
       cachedUser = await fetchProfile(session.user.id);
@@ -54,6 +56,11 @@ export async function initAuth() {
 
   supabase.auth.onAuthStateChange(async (event, session) => {
     if (session?.user) {
+      if (event === 'SIGNED_IN') {
+        markSessionStart();
+      } else {
+        syncSessionStartFromSupabase(session);
+      }
       try {
         if (event === 'SIGNED_IN') await completeOAuthSignup();
         cachedUser = await fetchProfile(session.user.id);
@@ -62,6 +69,7 @@ export async function initAuth() {
       }
     } else {
       cachedUser = null;
+      clearSessionStart();
     }
   });
 }
@@ -219,6 +227,7 @@ export async function login(email, password) {
       return { success: false, error: msg };
     }
     cachedUser = await fetchProfile(data.user.id);
+    markSessionStart();
     await clearAuditLog();
     return { success: true, user: cachedUser };
   });
@@ -272,6 +281,7 @@ export async function register({ fullName, email, password, role }) {
     }
 
     cachedUser = await fetchProfile(data.user.id);
+    markSessionStart();
     await clearAuditLog();
     return { success: true, user: cachedUser };
   } catch (err) {
@@ -347,6 +357,7 @@ export async function changePassword(userId, currentPassword, newPassword) {
 
 export async function logout() {
   await clearAuditLog();
+  clearSessionStart();
   if (isSupabaseEnabled()) {
     await getSupabase().auth.signOut();
   }
@@ -362,6 +373,7 @@ export async function deleteAccount() {
       await getSupabase().auth.signOut();
     }
     cachedUser = null;
+    clearSessionStart();
     sessionStorage.removeItem('banese_user_cache');
     const data = loadData();
     data.auditLog = [];

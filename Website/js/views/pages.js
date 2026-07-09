@@ -32,7 +32,7 @@ import {
   EXPENSE_TYPES,
   PAGE_SIZE,
 } from '../services.js';
-import { getPhotoSrc, hasValidPhotos, getRoleLabel } from '../data.js';
+import { getPhotoSrc, hasValidPhotos, getRoleLabel, formatContractNumber } from '../data.js';
 import { icons } from '../icons.js';
 import { renderBackButton } from './layout.js';
 import { t, formatLocaleString, formatLocaleDate } from '../i18n.js';
@@ -695,7 +695,8 @@ export function renderContractPage() {
       const landlord = data.users.find((u) => u.id === c.landlordId);
       return `
         <div class="contract-preview pending-contract" data-id="${c.id}" style="margin-bottom:1.5rem;border:2px solid var(--primary)">
-          <strong>${t('contract.pendingTitle')}</strong><br/><br/>
+          <strong>${t('contract.pendingTitle')}</strong>
+          ${formatContractNumber(c) ? `<span class="sub-status">Nr. ${formatContractNumber(c)}</span>` : ''}<br/><br/>
           ${t('contract.between', { landlord: landlord?.fullName, tenant: user.fullName })}<br/><br/>
           ${t('contract.object', { title: p?.title, address: p?.address })}<br/>
           ${t('contract.rent', { amount: formatCurrency(p?.rentPrice) })}<br/>
@@ -729,14 +730,17 @@ export function renderContractPage() {
   return html;
 }
 
-export function showSignatureModal(container, contract, onSign) {
+export function showSignatureModal(container, contract, onSign, options = {}) {
+  const title = options.title || t('modal.signatureTitle');
+  const hint = options.hint || t('modal.signatureHint');
+  const confirmLabel = options.confirmLabel || t('modal.signActivate');
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   modal.innerHTML = `
     <div class="modal">
-      <div class="modal-header"><h3>${t('modal.signatureTitle')}</h3><button class="modal-close">&times;</button></div>
+      <div class="modal-header"><h3>${title}</h3><button class="modal-close">&times;</button></div>
       <div class="modal-body">
-        <p class="field-hint">${t('modal.signatureHint')}</p>
+        <p class="field-hint">${hint}</p>
         <canvas id="signature-canvas" width="400" height="150" style="border:2px dashed var(--border);border-radius:8px;width:100%;max-width:400px;touch-action:none;cursor:crosshair;background:#fff"></canvas>
         <div style="margin-top:0.5rem"><button type="button" class="btn btn-outline btn-sm" id="clear-signature">${t('modal.clearSignature')}</button></div>
         <div class="form-group" style="margin-top:1rem"><label>${t('modal.typedSignature')}</label><input id="typed-signature" placeholder="${t('modal.signaturePlaceholder')}" /></div>
@@ -744,7 +748,7 @@ export function showSignatureModal(container, contract, onSign) {
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline modal-cancel">${t('common.cancel')}</button>
-        <button type="button" class="btn btn-blue" id="confirm-sign-btn">${t('modal.signActivate')}</button>
+        <button type="button" class="btn btn-blue" id="confirm-sign-btn">${confirmLabel}</button>
       </div>
     </div>`;
   container.appendChild(modal);

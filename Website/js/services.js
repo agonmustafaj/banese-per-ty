@@ -11,6 +11,7 @@ import {
   EXPENSE_TYPES,
   hasValidPhotos,
   getExpenseTypeLabel,
+  formatContractNumber,
 } from './data.js';
 import { getCurrentUserSync } from './auth.js';
 import { addNotification, addAuditLog } from './services-core.js';
@@ -163,7 +164,9 @@ export function getTenantProperties(tenantId) {
 export function getPendingContractsForTenant(tenantId) {
   const data = loadData();
   return data.contracts.filter(
-    (c) => c.tenantId === tenantId && c.status === 'pending_signature'
+    (c) =>
+      c.tenantId === tenantId &&
+      (c.status === 'pending_signature' || c.status === 'generated_pdf')
   );
 }
 
@@ -416,7 +419,14 @@ export async function requestContract(propertyId) {
   return { success: true, request };
 }
 
-export function createContract({ propertyId, tenantId, startDate, endDate, requestId }) {
+function nextContractNumber(data) {
+  const nums = (data.contracts || [])
+    .map((c) => c.contractNumber)
+    .filter((n) => typeof n === 'number' && n > 0);
+  return nums.length ? Math.max(...nums) + 1 : 1;
+}
+
+export async function createContract({ propertyId, tenantId, startDate, endDate, requestId, landlordSignature }) {
   const data = loadData();
   const user = getCurrentUserSync();
   const property = data.properties.find((p) => p.id === propertyId);
@@ -449,35 +459,72 @@ export function createContract({ propertyId, tenantId, startDate, endDate, reque
     };
   }
 
+  const hasLandlordDrawn = landlordSignature?.dataUrl;
+  const hasLandlordTyped = landlordSignature?.typedName?.trim();
+  if (!hasLandlordDrawn && !hasLandlordTyped) {
+    return { success: false, error: 'Kërkohet nënshkrimi digjital i qeradhënësit.' };
+  }
+
   const contract = {
     id: generateId('c'),
+    contractNumber: nextContractNumber(data),
     propertyId,
     landlordId: user.id,
     tenantId,
     startDate,
     endDate,
-    status: 'generated_pdf',
+    status: 'pending_signature',
     requestId: request.id,
     pdfUrl: null,
     createdAt: new Date().toISOString(),
     partiesSummary: `Kontratë mes ${user.fullName} (Qeradhënës) dhe ${tenant.fullName} (Qeramarrës)`,
+    landlordSignature: {
+      dataUrl: hasLandlordDrawn || null,
+      typedName: hasLandlordTyped || null,
+      signedAt: new Date().toISOString(),
+    },
   };
+
+  if (isSupabaseEnabled() && hasLandlordDrawn) {
+    try {
+      contract.landlordSignature = await uploadSignature(
+        user.id,
+        contract.id,
+        contract.landlordSignature,
+        'landlord'
+      );
+    } catch (err) {
+      return { success: false, error: err.message || 'Gabim gjatë ruajtjes së nënshkrimit të qeradhënësit.' };
+    }
+  }
 
   data.contracts.push(contract);
   request.status = 'kontratë_gjeneruar';
   request.contractId = contract.id;
   request.resolvedAt = new Date().toISOString();
-
-  contract.status = 'pending_signature';
   property.status = 'rezervuar';
 
   addNotification(
     tenantId,
     'kontratë',
-    `Keni kontratë të re për nënshkrim: "${property.title}". Shkoni te Kontrata.`
+    `Keni kontratë të re për nënshkrim: "${property.title}". Shkoni te Kontrata.`,
+    data
   );
-  addAuditLog('contract_generated', user.id, `Kontratë ${contract.id} për ${property.title}`);
-  saveData(data);
+  data.auditLog.unshift({
+    id: generateId('log'),
+    action: 'contract_generated',
+    userId: user.id,
+    details: `Kontratë ${contract.id} për ${property.title}`,
+    timestamp: new Date().toISOString(),
+  });
+  if (data.auditLog.length > 200) data.auditLog.length = 200;
+
+  try {
+    await saveDataAsync(data);
+  } catch (err) {
+    console.error('createContract sync:', err);
+    return { success: false, error: 'Kontrata nuk u ruajt në server. Provoni përsëri.' };
+  }
   return { success: true, contract };
 }
 
@@ -516,7 +563,7 @@ export async function signContract(contractId, accepted, signature = null) {
 
   if (isSupabaseEnabled() && hasDrawnSignature) {
     try {
-      finalSignature = await uploadSignature(user.id, contractId, finalSignature);
+      finalSignature = await uploadSignature(user.id, contractId, finalSignature, 'tenant');
     } catch (err) {
       return { success: false, error: err.message || 'Gabim gjatë ruajtjes së nënshkrimit.' };
     }

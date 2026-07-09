@@ -178,8 +178,8 @@ export async function syncAllToSupabase(data) {
   await syncProfiles(data.users || []);
   await syncProperties(data.properties);
   await upsertTable('favorites', data.favorites, favoriteToRow);
-  await upsertTable('contract_requests', data.contractRequests, contractRequestToRow);
   await upsertTable('contracts', data.contracts, contractToRow);
+  await upsertTable('contract_requests', data.contractRequests, contractRequestToRow);
   await upsertTable('payments', data.payments, paymentToRow);
   await upsertTable('notifications', data.notifications?.filter((n) => isUuid(n.id)), notificationToRow);
   await upsertTable('audit_log', data.auditLog?.filter((l) => isUuid(l.id)), auditToRow);
@@ -253,12 +253,12 @@ export async function uploadPaymentProof(tenantId, paymentId, proof) {
   };
 }
 
-export async function uploadSignature(tenantId, contractId, signature) {
+export async function uploadSignature(userId, contractId, signature, role = 'tenant') {
   const supabase = getSupabase();
   if (!signature?.dataUrl) return signature;
 
   const blob = dataUrlToBlob(signature.dataUrl);
-  const path = `${tenantId}/${contractId}/signature.png`;
+  const path = `${userId}/${contractId}/${role}-signature.png`;
 
   const { error } = await supabase.storage.from('contract-signatures').upload(path, blob, {
     upsert: true,

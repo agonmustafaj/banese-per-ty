@@ -1,8 +1,57 @@
+import { formatContractNumber } from './data.js';
+
 const PRIMARY = [56, 189, 248];
 const DARK = [17, 24, 39];
 const MUTED = [107, 114, 128];
 const BORDER = [229, 231, 235];
 const LIGHT = [255, 237, 213];
+
+let logoDataUrlCache = null;
+
+async function loadLogoDataUrl() {
+  if (logoDataUrlCache) return logoDataUrlCache;
+  try {
+    const base = window.location.pathname.replace(/\/[^/]*$/, '/');
+    const res = await fetch(`${base}assets/logo.svg`);
+    if (!res.ok) return null;
+    const svgText = await res.text();
+    const blob = new Blob([svgText], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      el.src = url;
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = 80;
+    canvas.height = 80;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, 80, 80);
+    URL.revokeObjectURL(url);
+    logoDataUrlCache = canvas.toDataURL('image/png');
+    return logoDataUrlCache;
+  } catch (_) {
+    return null;
+  }
+}
+
+function drawSignatureBlock(doc, signature, x, y, width) {
+  if (signature?.dataUrl) {
+    try {
+      doc.addImage(signature.dataUrl, 'PNG', x, y, Math.min(width, 55), 18);
+    } catch (_) {}
+  } else if (signature?.typedName) {
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(14);
+    doc.setTextColor(...PRIMARY);
+    doc.text(signature.typedName, x, y + 13);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...DARK);
+  }
+  doc.setDrawColor(...BORDER);
+  doc.line(x, y + 18, x + width, y + 18);
+}
 
 async function loadJsPDF() {
   if (window.jspdf?.jsPDF) return window.jspdf.jsPDF;
@@ -27,17 +76,23 @@ function loadScript(src) {
   });
 }
 
-function drawHeader(doc, title, subtitle) {
+async function drawHeader(doc, title, subtitle) {
   const pageWidth = doc.internal.pageSize.getWidth();
+  const logo = await loadLogoDataUrl();
   doc.setFillColor(...PRIMARY);
   doc.rect(0, 0, pageWidth, 30, 'F');
+  if (logo) {
+    try {
+      doc.addImage(logo, 'PNG', 12, 5, 20, 20);
+    } catch (_) {}
+  }
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(17);
-  doc.text('Banesë për ty', 14, 14);
+  doc.text('Banesë për ty', logo ? 36 : 14, 14);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9.5);
-  doc.text('Platforma për Menaxhimin e Qerasë — Kosovë', 14, 21);
+  doc.text('Platforma për Menaxhimin e Qerasë — Kosovë', logo ? 36 : 14, 21);
   doc.setFontSize(11);
   doc.text(title, pageWidth - 14, 14, { align: 'right' });
   if (subtitle) {
@@ -99,7 +154,8 @@ export async function downloadContractPdf(filename, contract, property, landlord
   const margin = 14;
   const colWidth = (pageWidth - margin * 2 - 8) / 2;
 
-  let y = drawHeader(doc, 'KONTRATË QERAJE', `Nr. ${contract.id}`);
+  const contractNr = formatContractNumber(contract) || '—';
+  let y = await drawHeader(doc, 'KONTRATË QERAJE', `Nr. ${contractNr}`);
   y += 4;
 
   doc.setFontSize(9.5);
@@ -173,25 +229,20 @@ export async function downloadContractPdf(filename, contract, property, landlord
   sectionTitle(doc, 'NËNSHKRIMI ELEKTRONIK', margin, y);
   y += 8;
 
-  doc.setDrawColor(...BORDER);
-  doc.line(margin, y + 18, margin + colWidth, y + 18);
+  drawSignatureBlock(doc, contract.landlordSignature, margin, y, colWidth);
   doc.setFontSize(8.5);
   doc.setTextColor(...MUTED);
-  doc.text('Qeradhënësi', margin, y + 22);
+  doc.text('Qeradhënësi (Nënshkrim Elektronik)', margin, y + 22);
   doc.text(landlord?.fullName || '-', margin, y + 26);
-
-  if (contract.signature?.dataUrl) {
-    try { doc.addImage(contract.signature.dataUrl, 'PNG', margin + colWidth + 8, y, 55, 18); } catch (_) {}
-  } else if (contract.signature?.typedName) {
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(14);
-    doc.setTextColor(...PRIMARY);
-    doc.text(contract.signature.typedName, margin + colWidth + 8, y + 13);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...DARK);
+  if (contract.landlordSignature?.signedAt) {
+    doc.text(
+      `Nënshkruar: ${new Date(contract.landlordSignature.signedAt).toLocaleString('sq-AL')}`,
+      margin,
+      y + 30
+    );
   }
-  doc.setDrawColor(...BORDER);
-  doc.line(margin + colWidth + 8, y + 18, margin + colWidth + 8 + colWidth, y + 18);
+
+  drawSignatureBlock(doc, contract.signature, margin + colWidth + 8, y, colWidth);
   doc.setFontSize(8.5);
   doc.setTextColor(...MUTED);
   doc.text('Qeramarrësi (Nënshkrim Elektronik)', margin + colWidth + 8, y + 22);
@@ -227,7 +278,7 @@ export async function downloadPaymentsPdf(filename, payments, periodLabel, userN
   const margin = 14;
   const pageWidth = doc.internal.pageSize.getWidth();
 
-  let y = drawHeader(doc, 'RAPORT FINANCIAR', periodLabel || 'Të gjitha periudhat');
+  let y = await drawHeader(doc, 'RAPORT FINANCIAR', periodLabel || 'Të gjitha periudhat');
   y += 4;
   if (userName) {
     doc.setFontSize(9.5);

@@ -70,11 +70,13 @@ create table if not exists public.contracts (
   start_date date,
   end_date date,
   status text default 'draft',
+  contract_number integer,
   signed_at timestamptz,
   pdf_generated_at timestamptz,
   pdf_url text,
   created_at timestamptz default now(),
   signature jsonb,
+  landlord_signature jsonb,
   parties_summary text
 );
 

@@ -10,7 +10,8 @@ import {
   initAuth,
   consumeOAuthUrlError,
 } from './auth.js';
-import { loadDataAsync } from './data.js';
+import { enforceSessionExpiry } from './auth-session.js';
+import { loadDataAsync, formatContractNumber } from './data.js';
 import { parseAppUrl, resolvePageAfterAuth, syncUrlState, canAccessPage } from './nav.js';
 import { initI18n, onLangChange, t, getDeleteConfirmWord } from './i18n.js';
 import { renderLogin, renderAppShell, attachShellEvents } from './views/layout.js';
@@ -57,7 +58,7 @@ import {
   loadData,
 } from './services.js';
 import { downloadContractPdf, downloadPaymentsPdf } from './pdf.js';
-import { formatDate, saveData } from './data.js';
+import { formatDate, saveData, saveDataAsync } from './data.js';
 
 const app = document.getElementById('app');
 let currentPage = 'home';
@@ -67,8 +68,18 @@ let paymentPeriod = {};
 let oauthBootstrapError = null;
 let dataLoadError = null;
 let visibilityReloadTimer = null;
+let sessionCheckTimer = null;
 
-const PAGES_RELOAD_DATA = new Set(['home', 'search', 'approvals']);
+const PAGES_RELOAD_DATA = new Set(['home', 'search', 'approvals', 'contract']);
+
+async function handleSessionExpiry() {
+  if (!isAuthenticatedSync()) return false;
+  if (!(await enforceSessionExpiry(logout))) return false;
+  currentPage = 'login';
+  alert(t('auth.sessionExpired'));
+  await render();
+  return true;
+}
 
 function showLoading() {
   app.innerHTML = `
@@ -104,6 +115,7 @@ async function navigate(page) {
     syncUrlState(page);
   }
   if (PAGES_RELOAD_DATA.has(page) && isAuthenticatedSync()) {
+    if (await handleSessionExpiry()) return;
     await reloadAppData();
   }
   await render();
@@ -252,11 +264,17 @@ function attachPageEvents(page, user) {
       btn.addEventListener('click', () => {
         const property = loadData().properties.find((p) => p.id === btn.dataset.id);
         showContractModal(app, property, async (form) => {
-          const result = createContract(form);
-          if (!result.success) { alert(result.error); return; }
-          await saveContractPdf(result.contract, loadData());
-          alert(t('alert.contractGenerated'));
-          render();
+          showSignatureModal(app, null, async (landlordSignature) => {
+            const result = await createContract({ ...form, landlordSignature });
+            if (!result.success) { alert(result.error); return; }
+            await saveContractPdf(result.contract, loadData());
+            alert(t('alert.contractGenerated'));
+            render();
+          }, {
+            title: t('modal.landlordSignatureTitle'),
+            hint: t('modal.landlordSignatureHint'),
+            confirmLabel: t('modal.generateSend'),
+          });
         });
       });
     });
@@ -587,10 +605,16 @@ async function saveContractPdf(contract, data) {
   const property = data.properties.find((p) => p.id === stored.propertyId);
   const landlord = data.users.find((u) => u.id === stored.landlordId);
   const tenant = data.users.find((u) => u.id === stored.tenantId);
-  await downloadContractPdf(`Kontrata_${stored.id}.pdf`, stored, property, landlord, tenant);
+  await downloadContractPdf(
+    `Kontrata_${formatContractNumber(stored) || stored.id}.pdf`,
+    stored,
+    property,
+    landlord,
+    tenant
+  );
   stored.pdfGeneratedAt = new Date().toISOString();
   if (stored.status === 'generated_pdf') stored.status = 'pending_signature';
-  saveData(data);
+  await saveDataAsync(data);
 }
 
 async function init() {
@@ -601,6 +625,8 @@ async function init() {
   try {
     oauthBootstrapError = consumeOAuthUrlError();
     await initAuth();
+    if (await handleSessionExpiry()) return;
+
     const { entry, page } = parseAppUrl();
 
     if (isAuthenticatedSync()) {
@@ -615,11 +641,17 @@ async function init() {
     window.addEventListener('popstate', handlePopState);
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState !== 'visible' || !isAuthenticatedSync()) return;
-      clearTimeout(visibilityReloadTimer);
-      visibilityReloadTimer = setTimeout(() => {
-        reloadAppData().then(() => render());
-      }, 300);
+      handleSessionExpiry().then((expired) => {
+        if (expired) return;
+        clearTimeout(visibilityReloadTimer);
+        visibilityReloadTimer = setTimeout(() => {
+          reloadAppData().then(() => render());
+        }, 300);
+      });
     });
+    sessionCheckTimer = setInterval(() => {
+      handleSessionExpiry();
+    }, 60 * 1000);
     await render();
   } catch (err) {
     console.error('Init error:', err);
