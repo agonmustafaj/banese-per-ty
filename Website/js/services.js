@@ -103,7 +103,6 @@ export function getPublishedProperties(filters = {}, page = 1) {
   if (filters.minPrice) list = list.filter((p) => p.rentPrice >= Number(filters.minPrice));
   if (filters.mobiluar) list = list.filter((p) => p.amenities?.mobiluar);
   if (filters.parking) list = list.filter((p) => p.amenities?.parking);
-  if (filters.nearCampus) list = list.filter((p) => p.nearCampus === filters.nearCampus);
 
   list.sort((a, b) => {
     if (filters.budgetSort === 'asc') return a.rentPrice - b.rentPrice;
@@ -277,7 +276,7 @@ export function deleteProperty(id) {
   return { success: true };
 }
 
-export function approveProperty(id, approved, reason = '') {
+export async function approveProperty(id, approved, reason = '') {
   const data = loadData();
   const user = getCurrentUserSync();
   const prop = data.properties.find((p) => p.id === id);
@@ -288,6 +287,7 @@ export function approveProperty(id, approved, reason = '') {
   }
 
   prop.status = approved ? 'publikuar' : 'refuzuar';
+  prop.updatedAt = new Date().toISOString();
   if (!approved) prop.rejectReason = reason;
   else delete prop.rejectReason;
 
@@ -303,7 +303,11 @@ export function approveProperty(id, approved, reason = '') {
     user?.id,
     `${prop.title} — ${approved ? 'miratuar' : 'refuzuar'}`
   );
-  saveData(data);
+  try {
+    await saveDataAsync(data);
+  } catch (err) {
+    return { success: false, error: err.message || 'Gabim gjatë ruajtjes në server.' };
+  }
   return { success: true };
 }
 

@@ -84,7 +84,7 @@ function propertyRow(p) {
           <div class="address">${icons.pin} ${p.address}</div>
           <div class="specs">${icons.bed} ${propertySpecs(p)}</div>
           <div class="price">${formatCurrency(p.rentPrice)}${t('common.perMonth')}</div>
-          ${p.nearCampus ? `<div class="sub-status">${t('common.near')}: ${getCampusName(p.nearCampus)}</div>` : ''}
+          ${p.city ? `<div class="sub-status">${p.city}</div>` : ''}
         </div>
         <div class="property-status">
           <span class="status-badge ${statusClass}">${propertyStatusLabel(p)}</span>
@@ -195,28 +195,121 @@ export function renderAdminHome() {
     </div>`;
 }
 
+function propertyTypeLabel(type) {
+  return t(`property.type.${type}`) || type || '—';
+}
+
+const AMENITY_KEYS = ['mobiluar', 'ngrohje', 'ac', 'parking', 'ballkon', 'ashensor'];
+
+function formatAmenities(amenities) {
+  const list = AMENITY_KEYS.filter((k) => amenities?.[k]).map((k) => t(`property.amenity.${k}`));
+  return list.length ? list.join(' · ') : '—';
+}
+
+function renderApprovalPhotoGallery(photos) {
+  const items = (photos || [])
+    .map((ph, index) => {
+      const src = getPhotoSrc(ph);
+      if (!src) return '';
+      return `
+        <button type="button" class="approval-photo-btn" data-src="${src}" aria-label="${t('admin.viewPhoto')} ${index + 1}">
+          <img src="${src}" alt="" loading="lazy" />
+        </button>`;
+    })
+    .filter(Boolean);
+
+  if (!items.length) {
+    return `<div class="approval-no-photos">${t('admin.noPhotos')}</div>`;
+  }
+
+  return `<div class="approval-photo-gallery">${items.join('')}</div>`;
+}
+
+function renderAdminApprovalCard(property, owner) {
+  const hasPhotos = hasValidPhotos(property.photos);
+
+  return `
+    <article class="approval-review-card" data-id="${property.id}">
+      <header class="approval-review-header">
+        <div>
+          <h3>${property.title}</h3>
+          <p class="approval-review-address">${icons.pin} ${property.address}, ${property.city}</p>
+        </div>
+        <span class="status-badge pending">${t('property.status.pendingApproval')}</span>
+      </header>
+
+      <section class="approval-review-section">
+        <h4>${t('property.photos')}</h4>
+        ${renderApprovalPhotoGallery(property.photos)}
+      </section>
+
+      <section class="approval-review-section">
+        <h4>${t('admin.propertyDetails')}</h4>
+        <dl class="approval-details-grid">
+          <div><dt>${t('property.type')}</dt><dd>${propertyTypeLabel(property.type)}</dd></div>
+          <div><dt>${t('property.rooms')}</dt><dd>${property.rooms ?? '—'}</dd></div>
+          <div><dt>${t('property.bathrooms')}</dt><dd>${property.bathrooms ?? '—'}</dd></div>
+          <div><dt>${t('property.area')}</dt><dd>${property.area ? `${property.area} m²` : '—'}</dd></div>
+          <div><dt>${t('property.rent')}</dt><dd>${formatCurrency(property.rentPrice)}${t('common.perMonth')}</dd></div>
+          <div><dt>${t('property.deposit')}</dt><dd>${formatCurrency(property.deposit || property.rentPrice || 0)}</dd></div>
+          <div><dt>${t('property.amenities')}</dt><dd>${formatAmenities(property.amenities)}</dd></div>
+          <div><dt>${t('admin.submittedAt')}</dt><dd>${property.createdAt ? formatDate(property.createdAt) : '—'}</dd></div>
+        </dl>
+      </section>
+
+      ${property.description?.trim() ? `
+        <section class="approval-review-section">
+          <h4>${t('property.description')}</h4>
+          <p class="approval-description">${property.description}</p>
+        </section>` : ''}
+
+      <section class="approval-review-section">
+        <h4>${t('admin.landlordContact')}</h4>
+        <dl class="approval-details-grid">
+          <div><dt>${t('common.name')}</dt><dd>${owner?.fullName || '—'}</dd></div>
+          <div><dt>${t('common.email')}</dt><dd>${owner?.email || '—'}</dd></div>
+          <div><dt>${t('common.phone')}</dt><dd>${owner?.phone || '—'}</dd></div>
+        </dl>
+      </section>
+
+      <footer class="approval-review-actions">
+        <button class="btn btn-primary approve-btn" data-id="${property.id}" data-action="approve" ${hasPhotos ? '' : 'disabled title="' + t('admin.noPhotos') + '"'}>${t('common.approve')}</button>
+        <button class="btn btn-danger approve-btn" data-id="${property.id}" data-action="reject">${t('common.reject')}</button>
+      </footer>
+    </article>`;
+}
+
+export function showPhotoLightbox(container, src, title = '') {
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal modal-photo">
+      <div class="modal-header">
+        <h3>${title || t('modal.photoTitle')}</h3>
+        <button type="button" class="modal-close" aria-label="${t('common.cancel')}">&times;</button>
+      </div>
+      <div class="modal-body approval-photo-lightbox">
+        <img src="${src}" alt="" />
+      </div>
+    </div>`;
+  container.appendChild(modal);
+  const close = () => modal.remove();
+  modal.querySelector('.modal-close').onclick = close;
+  modal.onclick = (e) => { if (e.target === modal) close(); };
+}
+
 export function renderAdminApprovalsPage() {
   const pending = getPendingProperties();
   const data = loadData();
 
   return `
     ${renderBackButton()}
-    <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1rem">${t('page.approvals')}</h2>
-    ${pending.length === 0 ? `<div class="empty-state"><p>${t('admin.noPending')}</p></div>` : pending.map((p) => {
-      const owner = data.users.find((u) => u.id === p.ownerId);
-      return `
-        <div class="property-row" style="margin-bottom:1rem">
-          <div class="property-info">
-            <h3>${p.title}</h3>
-            <div>${p.address}, ${p.city} — ${formatCurrency(p.rentPrice)}${t('common.perMonth')}</div>
-            <div class="sub-status">${t('common.landlord')}: ${owner?.fullName}</div>
-          </div>
-          <div class="property-actions-row">
-            <button class="btn btn-primary btn-sm approve-btn" data-id="${p.id}" data-action="approve">${t('common.approve')}</button>
-            <button class="btn btn-danger btn-sm approve-btn" data-id="${p.id}" data-action="reject">${t('common.reject')}</button>
-          </div>
-        </div>`;
-    }).join('')}`;
+    <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:0.5rem">${t('page.approvals')}</h2>
+    <p class="field-hint" style="margin-bottom:1.5rem">${t('admin.reviewHint')}</p>
+    ${pending.length === 0 ? `<div class="empty-state"><p>${t('admin.noPending')}</p></div>` : `
+      <div class="approval-review-list">
+        ${pending.map((p) => renderAdminApprovalCard(p, data.users.find((u) => u.id === p.ownerId))).join('')}
+      </div>`}`;
 }
 
 export function renderAdminUsersPage() {
@@ -349,12 +442,6 @@ export function renderAddPropertyPage(property = null) {
             </select>
           </div>
           <div class="form-group full"><label>${t('common.address')}</label><input name="address" required value="${property?.address || ''}" /></div>
-          <div class="form-group"><label>${t('property.nearCampus')}</label>
-            <select name="nearCampus">
-              <option value="">—</option>
-              ${CAMPUSES.map((c) => `<option value="${c.id}" ${property?.nearCampus === c.id ? 'selected' : ''}>${c.name}</option>`).join('')}
-            </select>
-          </div>
           <div class="form-group"><label>${t('property.rooms')}</label><input name="rooms" type="number" min="1" required value="${property?.rooms || ''}" /></div>
           <div class="form-group"><label>${t('property.bathrooms')}</label><input name="bathrooms" type="number" min="1" required value="${property?.bathrooms || ''}" /></div>
           <div class="form-group"><label>${t('property.area')}</label><input name="area" type="number" min="1" required value="${property?.area || ''}" /></div>
@@ -390,6 +477,7 @@ export function renderSearchPage(searchState = {}) {
   const user = getCurrentUserSync();
   const page = searchState.page || 1;
   const filters = searchState.filters || {};
+  const advanced = !!searchState.advanced;
 
   const result = getPublishedProperties(filters, page);
 
@@ -403,9 +491,8 @@ export function renderSearchPage(searchState = {}) {
         <div class="property-thumb-lg">${thumb}</div>
         <div class="body">
           <h3>${p.title}</h3>
-          <div class="address">${icons.pin} ${p.address}</div>
+          <div class="address">${icons.pin} ${p.address}, ${p.city}</div>
           <div class="specs">${propertySpecs(p)}</div>
-          ${p.nearCampus ? `<div class="sub-status">${t('common.near')} ${getCampusName(p.nearCampus)}</div>` : ''}
           <div class="price">${formatCurrency(p.rentPrice)}${t('common.perMonth')}</div>
           <div class="card-actions">
             <button class="btn btn-outline btn-sm favorite-btn" data-id="${p.id}">${fav ? t('search.unsave') : t('search.save')}</button>
@@ -421,14 +508,19 @@ export function renderSearchPage(searchState = {}) {
     ${renderBackButton()}
     <h2>${t('page.search')}</h2>
     <div class="search-filters">
-      <div class="form-grid">
-        <div class="form-group"><label>${t('property.city')}</label><select id="filter-city"><option value="">${t('search.allKosovo')}</option>${KOSOVO_CITIES.map((c) => `<option value="${c}" ${filters.city === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
-        <div class="form-group"><label>${t('property.type')}</label><select id="filter-type"><option value="">${t('common.all')}</option><option value="apartament">${t('property.type.apartament')}</option><option value="studio">${t('property.type.studio')}</option><option value="shtepi">${t('property.type.shtepi')}</option></select></div>
-        <div class="form-group"><label>${t('search.maxPrice')}</label><input id="filter-max-price" type="number" min="0" placeholder="500" value="${filters.maxPrice || ''}" /></div>
-        <div class="form-group"><label>${t('search.minRooms')}</label><input id="filter-min-rooms" type="number" min="1" value="${filters.minRooms || ''}" /></div>
-        <div class="form-group"><label>${t('search.minArea')}</label><input id="filter-min-area" type="number" min="0" value="${filters.minArea || ''}" /></div>
-        <div class="form-group"><label>${t('search.nearCampus')}</label><select id="filter-campus"><option value="">—</option>${CAMPUSES.map((c) => `<option value="${c.id}">${c.name}</option>`).join('')}</select></div>
-        <div class="form-group form-group--checkbox full"><label class="checkbox-label" for="filter-mobiluar"><input type="checkbox" id="filter-mobiluar" ${filters.mobiluar ? 'checked' : ''} /><span>${t('property.amenity.mobiluar')}</span></label></div>
+      <div class="form-grid search-filters-basic">
+        <div class="form-group full"><label>${t('property.city')}</label><select id="filter-city"><option value="">${t('search.allKosovo')}</option>${KOSOVO_CITIES.map((c) => `<option value="${c}" ${filters.city === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+      </div>
+      ${advanced ? `
+        <div class="form-grid search-filters-advanced">
+          <div class="form-group"><label>${t('property.type')}</label><select id="filter-type"><option value="">${t('common.all')}</option><option value="apartament" ${filters.type === 'apartament' ? 'selected' : ''}>${t('property.type.apartament')}</option><option value="studio" ${filters.type === 'studio' ? 'selected' : ''}>${t('property.type.studio')}</option><option value="shtepi" ${filters.type === 'shtepi' ? 'selected' : ''}>${t('property.type.shtepi')}</option></select></div>
+          <div class="form-group"><label>${t('search.maxPrice')}</label><input id="filter-max-price" type="number" min="0" placeholder="500" value="${filters.maxPrice || ''}" /></div>
+          <div class="form-group"><label>${t('search.minRooms')}</label><input id="filter-min-rooms" type="number" min="1" value="${filters.minRooms || ''}" /></div>
+          <div class="form-group"><label>${t('search.minArea')}</label><input id="filter-min-area" type="number" min="0" value="${filters.minArea || ''}" /></div>
+          <div class="form-group form-group--checkbox full"><label class="checkbox-label" for="filter-mobiluar"><input type="checkbox" id="filter-mobiluar" ${filters.mobiluar ? 'checked' : ''} /><span>${t('property.amenity.mobiluar')}</span></label></div>
+        </div>` : ''}
+      <div class="search-filter-toolbar">
+        <button type="button" class="btn btn-text" id="toggle-advanced-search">${advanced ? t('search.simpleSearch') : t('search.advancedSearch')}</button>
       </div>
       <div class="search-filter-actions">
         <button class="btn btn-primary" id="search-btn">${t('common.search')}</button>

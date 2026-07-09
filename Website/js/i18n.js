@@ -140,6 +140,12 @@ const translations = {
     'admin.auditLog': 'Audit Log',
     'admin.noActivity': 'Asnjë aktivitet.',
     'admin.noPending': 'Nuk ka prona në pritje.',
+    'admin.reviewHint': 'Shqyrtoni të dhënat dhe fotot e çdo prone para miratimit ose refuzimit.',
+    'admin.propertyDetails': 'Detajet e pronës',
+    'admin.noPhotos': 'Nuk ka foto të ngarkuara — prona nuk mund të miratohet pa foto.',
+    'admin.submittedAt': 'Dërguar më',
+    'admin.landlordContact': 'Kontakti i qeradhënësit',
+    'admin.viewPhoto': 'Shiko foton',
     'admin.noUsers': 'Nuk ka përdorues të regjistruar.',
     'admin.deleteUserHint': 'Fshirja e përdoruesit kërkon arsye të shkruar dhe fshin llogarinë nga databaza.',
     'admin.deleteUser': 'Fshi',
@@ -182,6 +188,8 @@ const translations = {
     'property.amenity.ashensor': 'Ashensor',
 
     'search.allKosovo': 'Të gjitha (gjithë Kosova)',
+    'search.advancedSearch': 'Kërkim i avancuar',
+    'search.simpleSearch': 'Kërkim i thjeshtë',
     'search.maxPrice': 'Çmim max €',
     'search.minRooms': 'Dhoma min',
     'search.minArea': 'Sipërfaqja min m²',
@@ -279,6 +287,8 @@ const translations = {
     'modal.startDate': 'Fillimi',
     'modal.endDate': 'Mbarimi',
     'modal.generateSend': 'Gjenero PDF & Dërgo',
+
+    'modal.photoTitle': 'Foto e pronës',
 
     'alert.deleteProperty': 'Fshini këtë banesë?',
     'alert.deleted': 'U fshi.',
@@ -448,6 +458,12 @@ const translations = {
     'admin.auditLog': 'Audit Log',
     'admin.noActivity': 'No activity.',
     'admin.noPending': 'No properties pending.',
+    'admin.reviewHint': 'Review each property\'s details and photos before approving or rejecting.',
+    'admin.propertyDetails': 'Property details',
+    'admin.noPhotos': 'No photos uploaded — a property cannot be approved without photos.',
+    'admin.submittedAt': 'Submitted on',
+    'admin.landlordContact': 'Landlord contact',
+    'admin.viewPhoto': 'View photo',
     'admin.noUsers': 'No registered users.',
     'admin.deleteUserHint': 'Deleting a user requires a written reason and removes the account from the database.',
     'admin.deleteUser': 'Delete',
@@ -490,6 +506,8 @@ const translations = {
     'property.amenity.ashensor': 'Elevator',
 
     'search.allKosovo': 'All (all of Kosovo)',
+    'search.advancedSearch': 'Advanced search',
+    'search.simpleSearch': 'Simple search',
     'search.maxPrice': 'Max price €',
     'search.minRooms': 'Min rooms',
     'search.minArea': 'Min area m²',
@@ -587,6 +605,8 @@ const translations = {
     'modal.startDate': 'Start',
     'modal.endDate': 'End',
     'modal.generateSend': 'Generate PDF & Send',
+
+    'modal.photoTitle': 'Property photo',
 
     'alert.deleteProperty': 'Delete this property?',
     'alert.deleted': 'Deleted.',

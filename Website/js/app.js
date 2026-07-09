@@ -28,6 +28,7 @@ import {
   renderAdminApprovalsPage,
   renderAdminUsersPage,
   renderNotificationsPage,
+  showPhotoLightbox,
   showContractModal,
   showSignatureModal,
   showPaymentProofModal,
@@ -61,7 +62,7 @@ import { formatDate, saveData } from './data.js';
 const app = document.getElementById('app');
 let currentPage = 'home';
 let editingPropertyId = null;
-let searchState = { page: 1, filters: {} };
+let searchState = { page: 1, filters: {}, advanced: false };
 let paymentPeriod = {};
 let oauthBootstrapError = null;
 let dataLoadError = null;
@@ -99,6 +100,9 @@ async function navigate(page) {
   if (page !== 'login' && isAuthenticatedSync()) {
     syncUrlState(page);
   }
+  if (page === 'search' && isAuthenticatedSync()) {
+    await reloadAppData();
+  }
   await render();
 }
 
@@ -113,6 +117,10 @@ function handlePopState() {
     } else if (user) {
       currentPage = resolvePageAfterAuth(user, entry, null);
     }
+  }
+  if (currentPage === 'search' && isAuthenticatedSync()) {
+    reloadAppData().then(() => render());
+    return;
   }
   render();
 }
@@ -252,14 +260,21 @@ function attachPageEvents(page, user) {
   }
 
   if (page === 'approvals') {
-    app.querySelectorAll('.approve-btn').forEach((btn) => {
+    app.querySelectorAll('.approval-photo-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
+        const src = btn.dataset.src;
+        if (src) showPhotoLightbox(app, src);
+      });
+    });
+    app.querySelectorAll('.approve-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
         const approved = btn.dataset.action === 'approve';
         let reason = '';
         if (!approved) reason = prompt(t('alert.rejectReason')) || '';
-        const result = approveProperty(btn.dataset.id, approved, reason);
+        const result = await approveProperty(btn.dataset.id, approved, reason);
         if (!result.success) { alert(result.error); render(); return; }
         alert(approved ? t('alert.propertyApproved') : t('alert.propertyRejected'));
+        await reloadAppData();
         render();
       });
     });
@@ -499,24 +514,38 @@ function attachPageEvents(page, user) {
 }
 
 function bindSearchEvents(user) {
-  const runSearch = (page = 1) => {
+  app.querySelector('#toggle-advanced-search')?.addEventListener('click', () => {
+    const nextAdvanced = !searchState.advanced;
     searchState = {
-      page,
-      filters: {
-        city: app.querySelector('#filter-city')?.value,
+      ...searchState,
+      advanced: nextAdvanced,
+      filters: nextAdvanced
+        ? searchState.filters
+        : { city: searchState.filters?.city || '' },
+    };
+    render();
+  });
+
+  const runSearch = (page = 1) => {
+    const city = app.querySelector('#filter-city')?.value || '';
+    const nextFilters = { city, budgetSort: 'asc' };
+    if (searchState.advanced) {
+      Object.assign(nextFilters, {
         type: app.querySelector('#filter-type')?.value,
         maxPrice: app.querySelector('#filter-max-price')?.value,
         minRooms: app.querySelector('#filter-min-rooms')?.value,
         minArea: app.querySelector('#filter-min-area')?.value,
-        nearCampus: app.querySelector('#filter-campus')?.value,
         mobiluar: app.querySelector('#filter-mobiluar')?.checked,
-        budgetSort: 'asc',
-      },
-    };
+      });
+    }
+    searchState = { ...searchState, page, filters: nextFilters };
     render();
   };
 
-  app.querySelector('#search-btn')?.addEventListener('click', () => runSearch(1));
+  app.querySelector('#search-btn')?.addEventListener('click', async () => {
+    await reloadAppData();
+    runSearch(1);
+  });
   app.querySelector('#prev-page')?.addEventListener('click', () => runSearch(searchState.page - 1));
   app.querySelector('#next-page')?.addEventListener('click', () => runSearch(searchState.page + 1));
   app.querySelector('#agency-btn')?.addEventListener('click', () => {
