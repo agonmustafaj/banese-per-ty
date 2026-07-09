@@ -378,9 +378,9 @@ export function renderSearchPage(searchState = {}) {
         <div class="form-group"><label>Dhoma min</label><input id="filter-min-rooms" type="number" min="1" value="${filters.minRooms || ''}" /></div>
         <div class="form-group"><label>Sipërfaqja min m²</label><input id="filter-min-area" type="number" min="0" value="${filters.minArea || ''}" /></div>
         <div class="form-group"><label>Afër kampusit</label><select id="filter-campus"><option value="">—</option>${CAMPUSES.map((c) => `<option value="${c.id}">${c.name}</option>`).join('')}</select></div>
-        <div class="form-group"><label><input type="checkbox" id="filter-mobiluar" /> Mobiluar</label></div>
+        <div class="form-group form-group--checkbox full"><label class="checkbox-label" for="filter-mobiluar"><input type="checkbox" id="filter-mobiluar" ${filters.mobiluar ? 'checked' : ''} /><span>Mobiluar</span></label></div>
       </div>
-      <div style="display:flex;gap:0.5rem;margin-top:1rem;flex-wrap:wrap">
+      <div class="search-filter-actions">
         <button class="btn btn-primary" id="search-btn">Kërko</button>
         <button class="btn btn-outline" id="agency-btn">Kërko ndihmë nga agjencia</button>
       </div>
