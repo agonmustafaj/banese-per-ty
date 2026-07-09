@@ -8,6 +8,7 @@ import {
   deleteAccount,
   deleteUserAsAdmin,
   initAuth,
+  consumeOAuthUrlError,
 } from './auth.js';
 import { loadDataAsync } from './data.js';
 import { parseAppUrl, resolvePageAfterAuth, syncUrlState, canAccessPage } from './nav.js';
@@ -62,6 +63,35 @@ let currentPage = 'home';
 let editingPropertyId = null;
 let searchState = { page: 1, filters: {} };
 let paymentPeriod = {};
+let oauthBootstrapError = null;
+let dataLoadError = null;
+
+function showLoading() {
+  app.innerHTML = `
+    <div class="app-loading">
+      <div class="app-loading-spinner" aria-hidden="true"></div>
+      <p>${t('app.loading')}</p>
+    </div>`;
+}
+
+function showFatalError(message) {
+  app.innerHTML = `
+    <div class="app-error-screen">
+      <h2>${t('app.renderError')}</h2>
+      <p>${message || t('app.loadError')}</p>
+      <button class="btn btn-primary" type="button" onclick="location.reload()">${t('app.retry')}</button>
+    </div>`;
+}
+
+async function reloadAppData() {
+  try {
+    await loadDataAsync();
+    dataLoadError = null;
+  } catch (err) {
+    console.error('loadDataAsync:', err);
+    dataLoadError = err?.message || t('app.loadError');
+  }
+}
 
 async function navigate(page) {
   currentPage = page;
@@ -88,26 +118,45 @@ function handlePopState() {
 }
 
 async function render() {
+  try {
+    await renderPage();
+  } catch (err) {
+    console.error('Render error:', err);
+    showFatalError(err?.message || t('app.renderError'));
+  }
+}
+
+async function renderPage() {
   if (!isAuthenticatedSync() || currentPage === 'login') {
     currentPage = 'login';
     const { html, attachEvents } = renderLogin(async (p) => {
-      await loadDataAsync();
+      await reloadAppData();
       await navigate(p);
     }, () => render());
     app.innerHTML = html;
     attachEvents(app);
+    if (oauthBootstrapError) {
+      const alertEl = app.querySelector('#auth-alert');
+      if (alertEl) alertEl.innerHTML = `<div class="alert alert-error">${oauthBootstrapError}</div>`;
+      oauthBootstrapError = null;
+    }
     return;
   }
 
-  const user = (await getCurrentUser()) || getCurrentUserSync();
+  const user = getCurrentUserSync() || (await getCurrentUser());
   if (!user) {
     currentPage = 'login';
     const { html, attachEvents } = renderLogin(async (p) => {
-      await loadDataAsync();
+      await reloadAppData();
       await navigate(p);
     }, () => render());
     app.innerHTML = html;
     attachEvents(app);
+    if (oauthBootstrapError) {
+      const alertEl = app.querySelector('#auth-alert');
+      if (alertEl) alertEl.innerHTML = `<div class="alert alert-error">${oauthBootstrapError}</div>`;
+      oauthBootstrapError = null;
+    }
     return;
   }
 
@@ -156,7 +205,10 @@ async function render() {
   }
 
   const unread = getUnreadCount(user.id);
-  app.innerHTML = renderAppShell(user, currentPage, content, unread);
+  const banner = dataLoadError
+    ? `<div class="app-banner" role="alert">${dataLoadError}</div>`
+    : '';
+  app.innerHTML = renderAppShell(user, currentPage, banner + content, unread);
   attachShellEvents(app, navigate, async () => {
     await logout();
     currentPage = 'login';
@@ -223,7 +275,7 @@ function attachPageEvents(page, user) {
         const result = await deleteUserAsAdmin(btn.dataset.id, reason);
         if (result.success) {
           alert(t('admin.userDeleted'));
-          await loadDataAsync();
+          await reloadAppData();
           render();
         } else {
           alert(result.error);
@@ -501,22 +553,30 @@ async function saveContractPdf(contract, data) {
 }
 
 async function init() {
+  showLoading();
   initI18n();
   onLangChange(() => render());
-  await initAuth();
-  const { entry, page } = parseAppUrl();
 
-  if (isAuthenticatedSync()) {
-    await loadDataAsync();
-    const user = getCurrentUserSync();
-    currentPage = resolvePageAfterAuth(user, entry, page);
-    syncUrlState(currentPage, true);
-  } else {
-    currentPage = 'login';
+  try {
+    oauthBootstrapError = consumeOAuthUrlError();
+    await initAuth();
+    const { entry, page } = parseAppUrl();
+
+    if (isAuthenticatedSync()) {
+      await reloadAppData();
+      const user = getCurrentUserSync();
+      currentPage = resolvePageAfterAuth(user, entry, page);
+      syncUrlState(currentPage, true);
+    } else {
+      currentPage = 'login';
+    }
+
+    window.addEventListener('popstate', handlePopState);
+    await render();
+  } catch (err) {
+    console.error('Init error:', err);
+    showFatalError(err?.message || t('app.loadError'));
   }
-
-  window.addEventListener('popstate', handlePopState);
-  await render();
 }
 
 init();

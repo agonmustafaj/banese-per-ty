@@ -100,6 +100,12 @@ const translations = {
     'auth.error.rateLimitWait': 'Prisni {seconds} sekonda para se të provoni përsëri.',
     'auth.error.userExists': 'Ky email është tashmë i regjistruar. Kyçuni ose përdorni "Harrove fjalëkalimin?".',
     'auth.error.generic': 'Gabim gjatë autentifikimit. Provoni përsëri.',
+    'auth.error.googleNotEnabled': 'Hyrja me Google nuk është aktivizuar në server. Përdorni email/fjalëkalim, ose aktivizoni Google te Supabase Dashboard → Authentication → Providers.',
+
+    'app.loading': 'Duke u ngarkuar…',
+    'app.loadError': 'Nuk u ngarkuan të dhënat. Kontrolloni lidhjen dhe rifreskoni faqen.',
+    'app.renderError': 'Ndodhi një gabim gjatë shfaqjes së faqes. Rifreskoni faqen.',
+    'app.retry': 'Rifresko faqen',
 
     'welcome.landlord': 'Paneli i Qeradhënësit',
     'welcome.tenant': 'Paneli i Qeramarrësit',
@@ -402,6 +408,12 @@ const translations = {
     'auth.error.rateLimitWait': 'Please wait {seconds} seconds before trying again.',
     'auth.error.userExists': 'This email is already registered. Log in or use "Forgot password?".',
     'auth.error.generic': 'Authentication error. Please try again.',
+    'auth.error.googleNotEnabled': 'Google sign-in is not enabled on the server. Use email/password, or enable Google in Supabase Dashboard → Authentication → Providers.',
+
+    'app.loading': 'Loading…',
+    'app.loadError': 'Could not load data. Check your connection and refresh the page.',
+    'app.renderError': 'An error occurred while rendering the page. Please refresh.',
+    'app.retry': 'Refresh page',
 
     'welcome.landlord': 'Landlord Dashboard',
     'welcome.tenant': 'Tenant Dashboard',

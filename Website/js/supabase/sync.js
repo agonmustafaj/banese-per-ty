@@ -122,11 +122,14 @@ async function upsertTable(table, rows, toRow) {
 
 async function syncProfiles(users) {
   const supabase = getSupabase();
-  for (const user of users) {
-    if (!isUuid(user.id)) continue;
-    const { error } = await supabase.from('profiles').update(userToProfile(user)).eq('id', user.id);
-    if (error) throw error;
-  }
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const own = (users || []).find((u) => u.id === user.id);
+  if (!own || !isUuid(own.id)) return;
+
+  const { error } = await supabase.from('profiles').update(userToProfile(own)).eq('id', own.id);
+  if (error) throw error;
 }
 
 export async function syncAllToSupabase(data) {

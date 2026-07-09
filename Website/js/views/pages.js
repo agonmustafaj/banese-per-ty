@@ -276,15 +276,19 @@ export function renderNotificationsPage() {
 
 export function renderProfilePage() {
   const user = getCurrentUserSync();
+  if (!user) return `<div class="empty-state"><p>${t('app.renderError')}</p></div>`;
+
+  const displayName = user.fullName?.trim() || user.email?.split('@')[0] || t('common.name');
+  const avatarLetter = displayName.charAt(0).toUpperCase();
   const stats = user.role === 'qiradhënësi' ? getLandlordStats(user.id) : null;
 
   return `
     ${renderBackButton()}
-    <div class="profile-header"><div class="profile-avatar">${user.fullName.charAt(0)}</div><h2>${user.fullName}</h2></div>
+    <div class="profile-header"><div class="profile-avatar">${avatarLetter}</div><h2>${displayName}</h2></div>
     <div class="profile-section">
       <form id="profile-form">
         <div class="form-grid">
-          <div class="form-group"><label>${t('common.name')}</label><input name="fullName" value="${user.fullName}" required /></div>
+          <div class="form-group"><label>${t('common.name')}</label><input name="fullName" value="${user.fullName || ''}" required /></div>
           <div class="form-group"><label>${t('common.email')}</label><input name="email" type="email" value="${user.email}" required /></div>
           <div class="form-group"><label>${t('common.phone')}</label><input name="phone" value="${user.phone || ''}" /></div>
           <div class="form-group"><label>${t('common.address')}</label><input name="address" value="${user.address || ''}" /></div>

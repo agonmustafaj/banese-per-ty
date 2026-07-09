@@ -140,7 +140,12 @@ export async function signInWithGoogle({ role } = {}) {
         queryParams: { prompt: 'select_account' },
       },
     });
-    if (error) return { success: false, error: error.message };
+    if (error) {
+      if (error.message?.toLowerCase().includes('provider is not enabled')) {
+        return { success: false, error: t('auth.error.googleNotEnabled') };
+      }
+      return { success: false, error: formatAuthError(error) };
+    }
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message || 'Gabim gjatë lidhjes me Google.' };
@@ -150,13 +155,13 @@ export async function signInWithGoogle({ role } = {}) {
 export async function getCurrentUser() {
   requireSupabase();
   const supabase = getSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) {
     cachedUser = null;
     return null;
   }
-  if (cachedUser?.id === user.id) return cachedUser;
-  cachedUser = await fetchProfile(user.id);
+  if (cachedUser?.id === session.user.id) return cachedUser;
+  cachedUser = await fetchProfile(session.user.id);
   return cachedUser;
 }
 
@@ -178,7 +183,25 @@ function formatAuthError(error, waitSeconds) {
   if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already been registered')) {
     return t('auth.error.userExists');
   }
+  if (msg.toLowerCase().includes('provider is not enabled') || msg.toLowerCase().includes('unsupported provider')) {
+    return t('auth.error.googleNotEnabled');
+  }
   return msg || t('auth.error.generic');
+}
+
+export function consumeOAuthUrlError() {
+  const hash = window.location.hash.replace(/^#/, '');
+  const hashParams = new URLSearchParams(hash);
+  const queryParams = new URLSearchParams(window.location.search);
+  const raw = hashParams.get('error_description')
+    || hashParams.get('error')
+    || queryParams.get('error_description')
+    || queryParams.get('error');
+  if (!raw) return null;
+
+  const cleanUrl = window.location.pathname + window.location.search;
+  history.replaceState({}, '', cleanUrl);
+  return formatAuthError({ message: decodeURIComponent(raw.replace(/\+/g, ' ')) });
 }
 
 export async function login(email, password) {

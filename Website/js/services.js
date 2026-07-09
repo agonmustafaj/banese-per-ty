@@ -1,6 +1,7 @@
 import {
   loadData,
   saveData,
+  saveDataAsync,
   generateId,
   PAGE_SIZE,
   PHOTO_MAX_BYTES,
@@ -208,7 +209,11 @@ export async function saveProperty(property) {
       addNotification(admin.id, 'miratim', `Prona "${existing.title}" kërkon miratim pas ndryshimit.`);
     }
     addAuditLog('property_update', user.id, `Përditësim pronë: ${existing.title}`);
-    saveData(data);
+    try {
+      await saveDataAsync(data);
+    } catch (err) {
+      return { success: false, error: err.message || 'Gabim gjatë ruajtjes në server.' };
+    }
     return { success: true, property: existing, pendingApproval: true };
   }
 
@@ -238,7 +243,12 @@ export async function saveProperty(property) {
     addNotification(admin.id, 'miratim', `Pronë e re për miratim: "${newProp.title}".`);
   }
   addAuditLog('property_create', user.id, `Pronë e re: ${newProp.title}`);
-  saveData(data);
+  try {
+    await saveDataAsync(data);
+  } catch (err) {
+    data.properties.pop();
+    return { success: false, error: err.message || 'Gabim gjatë ruajtjes në server.' };
+  }
   return { success: true, property: newProp, pendingApproval: true };
 }
 

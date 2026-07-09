@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { getSupabaseAuthOptions } from '../Website/js/supabase/auth-storage.js';
 
 function getConfig() {
   return window.__BANESE_CONFIG__ || {};
@@ -24,7 +25,9 @@ function resolveLandingUrl(entry, role) {
 async function getSessionRole() {
   const cfg = getConfig();
   if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) return null;
-  const supabase = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+  const supabase = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, {
+    auth: getSupabaseAuthOptions(),
+  });
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) return null;
   const { data } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();

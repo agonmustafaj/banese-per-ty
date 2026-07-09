@@ -178,6 +178,17 @@ export function loadData() {
   return migrateData(cloneData(defaultData));
 }
 
+const LOAD_TIMEOUT_MS = 20000;
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Koha e ngarkimit skadoi. Provoni përsëri.')), ms);
+    }),
+  ]);
+}
+
 export async function loadDataAsync(retries = 2) {
   if (!isSupabaseEnabled()) {
     throw new Error('Aplikacioni kërkon lidhje me serverin.');
@@ -185,7 +196,7 @@ export async function loadDataAsync(retries = 2) {
 
   for (let i = 0; i <= retries; i++) {
     try {
-      memoryCache = migrateData(await loadAllFromSupabase());
+      memoryCache = migrateData(await withTimeout(loadAllFromSupabase(), LOAD_TIMEOUT_MS));
       return memoryCache;
     } catch (err) {
       if (i === retries) throw err;
@@ -195,13 +206,24 @@ export async function loadDataAsync(retries = 2) {
   return loadData();
 }
 
+function reportSyncError(err) {
+  console.error('Sinkronizim Supabase:', err);
+}
+
 export function saveData(data) {
   memoryCache = data;
   refreshAdminStats(data);
   if (!isSupabaseEnabled()) return;
 
-  if (syncInFlight) syncInFlight = syncInFlight.then(() => syncAllToSupabase(data));
-  else syncInFlight = syncAllToSupabase(data).finally(() => { syncInFlight = null; });
+  if (syncInFlight) {
+    syncInFlight = syncInFlight
+      .then(() => syncAllToSupabase(data))
+      .catch(reportSyncError);
+  } else {
+    syncInFlight = syncAllToSupabase(data)
+      .catch(reportSyncError)
+      .finally(() => { syncInFlight = null; });
+  }
 }
 
 export async function saveDataAsync(data) {
