@@ -306,6 +306,13 @@ function attachPageEvents(page, user) {
     app.querySelectorAll('.activity-item[data-id]').forEach((el) => {
       el.addEventListener('click', () => markNotificationRead(el.dataset.id));
     });
+    app.querySelectorAll('.notification-open-btn').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        markNotificationRead(btn.dataset.id);
+        await navigate(btn.dataset.page);
+      });
+    });
   }
 
   if (page === 'add-property') {
@@ -557,9 +564,11 @@ function bindSearchEvents(user) {
   });
 
   app.querySelectorAll('.request-contract-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const result = requestContract(btn.dataset.id);
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      const result = await requestContract(btn.dataset.id);
       alert(result.success ? t('alert.requestSent') : result.error);
+      await reloadAppData();
       render();
     });
   });

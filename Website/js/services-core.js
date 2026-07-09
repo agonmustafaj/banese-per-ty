@@ -2,7 +2,7 @@ import { loadData, saveData, generateId } from './data.js';
 import { isSupabaseEnabled } from './config.js';
 import { insertNotificationSupabase, insertAuditSupabase, clearAuditLogSupabase } from './supabase/sync.js';
 
-export function addNotification(userId, type, message) {
+export function addNotification(userId, type, message, existingData = null) {
   const notification = {
     id: generateId('n'),
     userId,
@@ -12,7 +12,7 @@ export function addNotification(userId, type, message) {
     read: false,
   };
 
-  const data = loadData();
+  const data = existingData || loadData();
   data.notifications.unshift(notification);
 
   if (isSupabaseEnabled()) {
@@ -21,11 +21,11 @@ export function addNotification(userId, type, message) {
         notification.id = saved.id;
       })
       .catch((err) => console.error('Njoftim Supabase:', err));
-    saveData(data);
+    if (!existingData) saveData(data);
     return;
   }
 
-  saveData(data);
+  if (!existingData) saveData(data);
 }
 
 export async function clearAuditLog() {

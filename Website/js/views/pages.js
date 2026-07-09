@@ -356,15 +356,26 @@ export function renderNotificationsPage() {
   const user = getCurrentUserSync();
   const notes = getNotifications(user.id);
 
+  const actionPageFor = (notification) => {
+    if (notification.type === 'kërkesë') return 'home';
+    if (notification.type === 'kontratë') return 'contract';
+    if (notification.type === 'pagesë') return 'payments';
+    return '';
+  };
+
   return `
     ${renderBackButton()}
     <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:1rem">${t('page.notifications')}</h2>
-    ${notes.length === 0 ? `<div class="empty-state"><p>${t('notifications.none')}</p></div>` : notes.map((n) => `
-      <div class="activity-item ${n.read ? '' : 'unread'}" data-id="${n.id}">
-        <div class="title">${n.type}</div>
-        <div class="meta">${n.message}</div>
-        <div class="request-meta">${formatLocaleString(n.sentAt)}</div>
-      </div>`).join('')}`;
+    ${notes.length === 0 ? `<div class="empty-state"><p>${t('notifications.none')}</p></div>` : notes.map((n) => {
+      const actionPage = actionPageFor(n);
+      return `
+        <div class="activity-item ${n.read ? '' : 'unread'}" data-id="${n.id}">
+          <div class="title">${n.type}</div>
+          <div class="meta">${n.message}</div>
+          <div class="request-meta">${formatLocaleString(n.sentAt)}</div>
+          ${actionPage ? `<button type="button" class="btn btn-outline btn-sm notification-open-btn" data-id="${n.id}" data-page="${actionPage}" style="margin-top:0.75rem">${t('common.view')}</button>` : ''}
+        </div>`;
+    }).join('')}`;
 }
 
 export function renderProfilePage() {

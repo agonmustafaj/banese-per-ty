@@ -370,7 +370,7 @@ export function hasTenantPendingRequest(tenantId, propertyId) {
   );
 }
 
-export function requestContract(propertyId) {
+export async function requestContract(propertyId) {
   const user = getCurrentUserSync();
   if (user.role !== 'qiramarrësi') {
     return { success: false, error: 'Vetëm qeramarrësit mund të kërkojnë kontratë.' };
@@ -404,10 +404,15 @@ export function requestContract(propertyId) {
   addNotification(
     property.ownerId,
     'kërkesë',
-    `${user.fullName} kërkoi kontratë për "${property.title}".`
+    `${user.fullName} kërkoi kontratë për "${property.title}".`,
+    data
   );
   addAuditLog('contract_request', user.id, `Kërkesë kontrate për ${property.title}`);
-  saveData(data);
+  try {
+    await saveDataAsync(data);
+  } catch (err) {
+    return { success: false, error: err.message || 'Gabim gjatë dërgimit të kërkesës.' };
+  }
   return { success: true, request };
 }
 
