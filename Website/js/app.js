@@ -11,7 +11,7 @@ import {
   consumeOAuthUrlError,
 } from './auth.js';
 import { enforceSessionExpiry } from './auth-session.js';
-import { loadDataAsync, refreshDataAsync, formatContractNumber } from './data.js';
+import { loadDataAsync, refreshDataAsync, refreshContractsAsync, formatContractNumber } from './data.js';
 import { startRealtimeSync } from './supabase/realtime-sync.js';
 import { parseAppUrl, resolvePageAfterAuth, syncUrlState, canAccessPage } from './nav.js';
 import { initI18n, onLangChange, t, getDeleteConfirmWord } from './i18n.js';
@@ -127,9 +127,13 @@ async function refreshInBackground() {
 
   refreshInFlight = (async () => {
     try {
-      await refreshDataAsync();
-      dataLoadError = null;
       const user = getCurrentUserSync();
+      if (user?.role === 'qiramarrësi') {
+        await refreshContractsAsync();
+      } else {
+        await refreshDataAsync();
+      }
+      dataLoadError = null;
       if (user) {
         patchNotificationBadge(app, getUnreadCount(user.id));
         if (user.role === 'qiramarrësi') {
@@ -179,9 +183,19 @@ async function navigate(page) {
   if (await handleSessionExpiry()) return;
   if (page === 'contract' && isAuthenticatedSync()) {
     try {
-      await refreshDataAsync();
+      await refreshContractsAsync();
     } catch (err) {
-      console.error('refreshDataAsync before contract:', err);
+      console.error('refreshContractsAsync before contract:', err);
+    }
+  }
+  if (page === 'home' && isAuthenticatedSync()) {
+    const user = getCurrentUserSync();
+    if (user?.role === 'qiramarrësi') {
+      try {
+        await refreshContractsAsync();
+      } catch (err) {
+        console.error('refreshContractsAsync before home:', err);
+      }
     }
   }
   await render();
@@ -407,6 +421,13 @@ function attachPageEvents(page, user) {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
         await markNotificationRead(btn.dataset.id);
+        if (btn.dataset.page === 'contract') {
+          try {
+            await refreshContractsAsync();
+          } catch (err) {
+            console.error('refreshContractsAsync from notification:', err);
+          }
+        }
         await navigate(btn.dataset.page);
       });
     });

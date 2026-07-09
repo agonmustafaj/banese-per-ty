@@ -124,6 +124,22 @@ export function contractFromRow(row) {
   };
 }
 
+/** Mos ruaj dataUrl të mëdha në DB — vetëm storagePath ose emër i shkruar. */
+function compactSignatureForDb(sig) {
+  if (!sig) return null;
+  if (sig.storagePath) {
+    return {
+      storagePath: sig.storagePath,
+      typedName: sig.typedName || null,
+      signedAt: sig.signedAt || null,
+    };
+  }
+  if (sig.typedName?.trim()) {
+    return { typedName: sig.typedName.trim(), signedAt: sig.signedAt || null };
+  }
+  return null;
+}
+
 export function contractToRow(c) {
   return {
     id: c.id,
@@ -139,8 +155,8 @@ export function contractToRow(c) {
     pdf_generated_at: c.pdfGeneratedAt || null,
     pdf_url: c.pdfUrl || null,
     created_at: c.createdAt,
-    signature: c.signature || null,
-    landlord_signature: c.landlordSignature || null,
+    signature: compactSignatureForDb(c.signature),
+    landlord_signature: compactSignatureForDb(c.landlordSignature),
     parties_summary: c.partiesSummary || null,
   };
 }

@@ -211,11 +211,69 @@ export async function syncAllToSupabase(data) {
   await syncProfiles(data.users || []);
   await syncProperties(data.properties);
   await upsertTable('favorites', data.favorites, favoriteToRow);
-  await upsertTable('contracts', data.contracts, contractToRow);
   await upsertTable('contract_requests', data.contractRequests, contractRequestToRow);
+  await upsertTable('contracts', data.contracts, contractToRow);
   await upsertTable('payments', data.payments, paymentToRow);
   await upsertTable('notifications', data.notifications?.filter((n) => isUuid(n.id)), notificationToRow);
   await upsertTable('audit_log', data.auditLog?.filter((l) => isUuid(l.id)), auditToRow);
+}
+
+/** Ruaj kontratë të re + përditëso kërkesën — para njoftimit te qiramarrësi. */
+export async function persistNewContract(contract, request, property) {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error('Supabase nuk është konfiguruar.');
+
+  const row = contractToRow(contract);
+  const { data: saved, error: contractError } = await supabase
+    .from('contracts')
+    .insert(row)
+    .select()
+    .single();
+  if (contractError) throw contractError;
+
+  const savedContract = contractFromRow(saved);
+  Object.assign(contract, savedContract);
+
+  const { error: requestError } = await supabase
+    .from('contract_requests')
+    .update(contractRequestToRow(request))
+    .eq('id', request.id);
+  if (requestError) throw requestError;
+
+  if (property?.id) {
+    await updatePropertySupabase(property);
+  }
+
+  return savedContract;
+}
+
+/** Ngarko kontratat e përdoruesit aktual (qiramarrës ose qiradhënës). */
+export async function fetchContractsForCurrentUser() {
+  const supabase = getSupabase();
+  if (!supabase) return [];
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return [];
+
+  const { data, error } = await supabase
+    .from('contracts')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(contractFromRow);
+}
+
+/** Ngarko prona sipas ID (për faqen e kontratës te qiramarrësi). */
+export async function fetchPropertiesByIds(ids) {
+  const supabase = getSupabase();
+  if (!supabase || !ids?.length) return [];
+
+  const unique = [...new Set(ids.filter(isUuid))];
+  if (!unique.length) return [];
+
+  const { data, error } = await supabase.from('properties').select('*').in('id', unique);
+  if (error) throw error;
+  return (data || []).map(propertyFromRow);
 }
 
 export async function insertNotificationSupabase(notification) {

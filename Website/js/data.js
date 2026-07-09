@@ -1,6 +1,6 @@
 import { isSupabaseEnabled } from './config.js';
 import { t, locale } from './i18n.js';
-import { loadAllFromSupabase, loadVolatileFromSupabase, syncAllToSupabase } from './supabase/sync.js';
+import { loadAllFromSupabase, loadVolatileFromSupabase, syncAllToSupabase, fetchContractsForCurrentUser, fetchPropertiesByIds } from './supabase/sync.js';
 
 export const PAGE_SIZE = 20;
 export const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
@@ -241,6 +241,24 @@ function mergeVolatileIntoCache(cache, volatile) {
     notifications: mergeEntityList(cache.notifications, volatile.notifications),
     auditLog: mergeEntityList(cache.auditLog, volatile.auditLog),
   };
+}
+
+/** Ngarko kontratat + pronat e lidhura për përdoruesin aktual (qiramarrës/qeradhënës). */
+export async function refreshContractsAsync() {
+  if (!isSupabaseEnabled()) return memoryCache;
+  if (!memoryCache) return loadDataAsync(1);
+
+  const contracts = await fetchContractsForCurrentUser();
+  const propertyIds = contracts.map((c) => c.propertyId).filter(Boolean);
+  const properties = propertyIds.length ? await fetchPropertiesByIds(propertyIds) : [];
+
+  memoryCache = migrateData({
+    ...memoryCache,
+    contracts: mergeEntityList(memoryCache.contracts, contracts),
+    properties: mergeEntityList(memoryCache.properties, properties),
+  });
+  refreshAdminStats(memoryCache);
+  return memoryCache;
 }
 
 /** Rifreskim i shpejtë në sfond — përditëson cache, pa fshirë të dhëna lokale. */

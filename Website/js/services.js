@@ -14,9 +14,15 @@ import {
   formatContractNumber,
 } from './data.js';
 import { getCurrentUserSync } from './auth.js';
-import { addNotification, addAuditLog } from './services-core.js';
+import { addNotification, addNotificationAsync, addAuditLog } from './services-core.js';
 import { isSupabaseEnabled } from './config.js';
-import { uploadPropertyPhotos, uploadPaymentProof, uploadSignature, updatePropertySupabase } from './supabase/sync.js';
+import {
+  uploadPropertyPhotos,
+  uploadPaymentProof,
+  uploadSignature,
+  updatePropertySupabase,
+  persistNewContract,
+} from './supabase/sync.js';
 
 const RESERVING_STATUSES = ['pending_signature', 'generated_pdf', 'signed'];
 
@@ -581,33 +587,53 @@ export async function createContract({ propertyId, tenantId, startDate, endDate,
   request.resolvedAt = new Date().toISOString();
   property.status = 'rezervuar';
 
-  addNotification(
-    tenantId,
-    'kontratë',
-    `Qeradhënësi dërgoi kontratë për "${property.title}". Nënshkruani te faqja Kontratat.`,
-    data
-  );
-  addNotification(
-    user.id,
-    'kontratë',
-    `Kontrata për "${property.title}" u dërgua te ${tenant.fullName} për nënshkrim.`,
-    data
-  );
-  data.auditLog.unshift({
-    id: generateId('log'),
-    action: 'contract_generated',
-    userId: user.id,
-    details: `Kontratë ${contract.id} për ${property.title}`,
-    timestamp: new Date().toISOString(),
-  });
-  if (data.auditLog.length > 200) data.auditLog.length = 200;
+  try {
+    if (isSupabaseEnabled()) {
+      await persistNewContract(contract, request, property);
+      await addNotificationAsync(
+        tenantId,
+        'kontratë',
+        `Qeradhënësi dërgoi kontratë për "${property.title}". Nënshkruani te faqja Kontratat.`,
+        data
+      );
+      await addNotificationAsync(
+        user.id,
+        'kontratë',
+        `Kontrata për "${property.title}" u dërgua te ${tenant.fullName} për nënshkrim.`,
+        data
+      );
+    } else {
+      addNotification(
+        tenantId,
+        'kontratë',
+        `Qeradhënësi dërgoi kontratë për "${property.title}". Nënshkruani te faqja Kontratat.`,
+        data
+      );
+      addNotification(
+        user.id,
+        'kontratë',
+        `Kontrata për "${property.title}" u dërgua te ${tenant.fullName} për nënshkrim.`,
+        data
+      );
+    }
+  } catch (err) {
+    data.contracts = data.contracts.filter((c) => c.id !== contract.id);
+    request.status = 'në pritje';
+    request.contractId = null;
+    request.resolvedAt = null;
+    property.status = 'publikuar';
+    console.error('createContract persist:', err);
+    return { success: false, error: err.message || 'Kontrata nuk u ruajt në server. Provoni përsëri.' };
+  }
+
+  addAuditLog('contract_generated', user.id, `Kontratë ${contract.id} për ${property.title}`, data);
 
   try {
     await saveDataAsync(data);
   } catch (err) {
-    console.error('createContract sync:', err);
-    return { success: false, error: 'Kontrata nuk u ruajt në server. Provoni përsëri.' };
+    console.error('createContract cache:', err);
   }
+
   return { success: true, contract };
 }
 

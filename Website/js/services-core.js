@@ -2,6 +2,30 @@ import { loadData, saveData, generateId } from './data.js';
 import { isSupabaseEnabled } from './config.js';
 import { insertNotificationSupabase, insertAuditSupabase, clearAuditLogSupabase } from './supabase/sync.js';
 
+export async function addNotificationAsync(userId, type, message, existingData = null) {
+  const notification = {
+    id: generateId('n'),
+    userId,
+    type,
+    message,
+    sentAt: new Date().toISOString(),
+    read: false,
+  };
+
+  const data = existingData || loadData();
+  data.notifications.unshift(notification);
+
+  if (isSupabaseEnabled()) {
+    const saved = await insertNotificationSupabase(notification);
+    notification.id = saved.id;
+    if (!existingData) saveData(data);
+    return notification;
+  }
+
+  if (!existingData) saveData(data);
+  return notification;
+}
+
 export function addNotification(userId, type, message, existingData = null) {
   const notification = {
     id: generateId('n'),
