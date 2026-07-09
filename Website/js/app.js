@@ -80,7 +80,7 @@ let stopRealtimeSync = null;
 let pollSyncTimer = null;
 let refreshInFlight = null;
 
-const AUTO_SYNC_INTERVAL_MS = 25 * 1000;
+const AUTO_SYNC_INTERVAL_MS = 60 * 1000;
 
 async function handleSessionExpiry() {
   if (!isAuthenticatedSync()) return false;
@@ -126,12 +126,8 @@ async function refreshInBackground() {
     try {
       await refreshDataAsync();
       dataLoadError = null;
-      if (shouldBlockAutoRender()) {
-        const user = getCurrentUserSync();
-        if (user) patchNotificationBadge(app, getUnreadCount(user.id));
-        return;
-      }
-      await render();
+      const user = getCurrentUserSync();
+      if (user) patchNotificationBadge(app, getUnreadCount(user.id));
     } catch (err) {
       console.error('refreshDataAsync:', err);
     } finally {
@@ -174,9 +170,6 @@ async function navigate(page) {
   }
   if (await handleSessionExpiry()) return;
   await render();
-  if (isAuthenticatedSync()) {
-    refreshInBackground();
-  }
 }
 
 function handlePopState() {
@@ -191,9 +184,7 @@ function handlePopState() {
       currentPage = resolvePageAfterAuth(user, entry, null);
     }
   }
-  render().then(() => {
-    if (isAuthenticatedSync()) refreshInBackground();
-  });
+  render();
 }
 
 async function render() {
@@ -206,8 +197,7 @@ async function render() {
 }
 
 async function renderPage() {
-  if (!isAuthenticatedSync() || currentPage === 'login') {
-    currentPage = 'login';
+  if (currentPage === 'login') {
     const { html, attachEvents } = renderLogin(async (p) => {
       await reloadAppData();
       startAutoSync();
@@ -226,7 +216,10 @@ async function renderPage() {
     return;
   }
 
-  const user = getCurrentUserSync() || (await getCurrentUser());
+  let user = getCurrentUserSync();
+  if (!user) {
+    user = await getCurrentUser();
+  }
   if (!user) {
     currentPage = 'login';
     const { html, attachEvents } = renderLogin(async (p) => {
@@ -365,8 +358,7 @@ function attachPageEvents(page, user) {
         const result = await approveProperty(btn.dataset.id, approved, reason);
         if (!result.success) { alert(result.error); render(); return; }
         alert(approved ? t('alert.propertyApproved') : t('alert.propertyRejected'));
-        render();
-        refreshInBackground();
+        await render();
       });
     });
   }
@@ -381,8 +373,7 @@ function attachPageEvents(page, user) {
         const result = await deleteUserAsAdmin(btn.dataset.id, reason);
         if (result.success) {
           alert(t('admin.userDeleted'));
-          render();
-          refreshInBackground();
+          await render();
         } else {
           alert(result.error);
         }
@@ -693,8 +684,7 @@ function bindSearchEvents(user) {
     render();
   };
 
-  app.querySelector('#search-btn')?.addEventListener('click', async () => {
-    await refreshInBackground();
+  app.querySelector('#search-btn')?.addEventListener('click', () => {
     runSearch(1);
   });
   app.querySelector('#prev-page')?.addEventListener('click', () => runSearch(searchState.page - 1));
@@ -707,7 +697,6 @@ function bindSearchEvents(user) {
         const result = await requestContract(btn.dataset.id);
         alert(result.success ? t('alert.requestSent') : result.error);
         await render();
-        refreshInBackground();
       });
       btn.disabled = false;
     });

@@ -218,7 +218,32 @@ export async function loadDataAsync(retries = 1) {
   return loadData();
 }
 
-/** Rifreskim i shpejtë në sfond — përditëson prona, kontrata, njoftime, etj. */
+/** Bashkon listat nga serveri me cache lokale — mos fshi rekordet që s'janë sync-uar ende. */
+function mergeEntityList(local = [], remote = []) {
+  const byId = new Map();
+  for (const item of local) {
+    if (item?.id) byId.set(item.id, item);
+  }
+  for (const item of remote) {
+    if (item?.id) byId.set(item.id, item);
+  }
+  return Array.from(byId.values());
+}
+
+function mergeVolatileIntoCache(cache, volatile) {
+  return {
+    ...cache,
+    properties: mergeEntityList(cache.properties, volatile.properties),
+    favorites: mergeEntityList(cache.favorites, volatile.favorites),
+    contractRequests: mergeEntityList(cache.contractRequests, volatile.contractRequests),
+    contracts: mergeEntityList(cache.contracts, volatile.contracts),
+    payments: mergeEntityList(cache.payments, volatile.payments),
+    notifications: mergeEntityList(cache.notifications, volatile.notifications),
+    auditLog: mergeEntityList(cache.auditLog, volatile.auditLog),
+  };
+}
+
+/** Rifreskim i shpejtë në sfond — përditëson cache, pa fshirë të dhëna lokale. */
 export async function refreshDataAsync() {
   if (!isSupabaseEnabled()) {
     throw new Error('Aplikacioni kërkon lidhje me serverin.');
@@ -226,7 +251,7 @@ export async function refreshDataAsync() {
   if (!memoryCache) return loadDataAsync(1);
 
   const volatile = await withTimeout(loadVolatileFromSupabase(), VOLATILE_TIMEOUT_MS);
-  memoryCache = migrateData({ ...memoryCache, ...volatile });
+  memoryCache = migrateData(mergeVolatileIntoCache(memoryCache, volatile));
   refreshAdminStats(memoryCache);
   return memoryCache;
 }

@@ -41,7 +41,7 @@ export async function clearAuditLog() {
   }
 }
 
-export function addAuditLog(action, userId, details) {
+export function addAuditLog(action, userId, details, existingData = null) {
   const entry = {
     id: generateId('log'),
     action,
@@ -50,7 +50,7 @@ export function addAuditLog(action, userId, details) {
     timestamp: new Date().toISOString(),
   };
 
-  const data = loadData();
+  const data = existingData || loadData();
   data.auditLog.unshift(entry);
   if (data.auditLog.length > 200) data.auditLog.length = 200;
 
@@ -60,9 +60,9 @@ export function addAuditLog(action, userId, details) {
         entry.id = saved.id;
       })
       .catch((err) => console.error('Audit Supabase:', err));
-    saveData(data);
+    if (!existingData) saveData(data);
     return;
   }
 
-  saveData(data);
+  if (!existingData) saveData(data);
 }

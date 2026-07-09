@@ -246,9 +246,9 @@ export async function saveProperty(property) {
 
     const admin = data.users.find((u) => u.role === 'administrator');
     if (admin) {
-      addNotification(admin.id, 'miratim', `Prona "${existing.title}" kërkon miratim pas ndryshimit.`);
+      addNotification(admin.id, 'miratim', `Prona "${existing.title}" kërkon miratim pas ndryshimit.`, data);
     }
-    addAuditLog('property_update', user.id, `Përditësim pronë: ${existing.title}`);
+    addAuditLog('property_update', user.id, `Përditësim pronë: ${existing.title}`, data);
     try {
       await saveDataAsync(data);
     } catch (err) {
@@ -280,9 +280,9 @@ export async function saveProperty(property) {
   data.properties.push(newProp);
   const admin = data.users.find((u) => u.role === 'administrator');
   if (admin) {
-    addNotification(admin.id, 'miratim', `Pronë e re për miratim: "${newProp.title}".`);
+    addNotification(admin.id, 'miratim', `Pronë e re për miratim: "${newProp.title}".`, data);
   }
-  addAuditLog('property_create', user.id, `Pronë e re: ${newProp.title}`);
+  addAuditLog('property_create', user.id, `Pronë e re: ${newProp.title}`, data);
   try {
     await saveDataAsync(data);
   } catch (err) {

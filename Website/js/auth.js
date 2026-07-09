@@ -48,7 +48,14 @@ export async function initAuth() {
       await completeOAuthSignup();
       cachedUser = await fetchProfile(session.user.id);
     } catch (_) {
-      cachedUser = null;
+      if (!cachedUser || cachedUser.id !== session.user.id) {
+        cachedUser = {
+          id: session.user.id,
+          email: session.user.email || '',
+          fullName: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || '',
+          role: session.user.user_metadata?.role || 'qiramarrësi',
+        };
+      }
     }
   } else {
     cachedUser = null;
@@ -65,7 +72,14 @@ export async function initAuth() {
         if (event === 'SIGNED_IN') await completeOAuthSignup();
         cachedUser = await fetchProfile(session.user.id);
       } catch (_) {
-        cachedUser = null;
+        if (!cachedUser || cachedUser.id !== session.user.id) {
+          cachedUser = {
+            id: session.user.id,
+            email: session.user.email || '',
+            fullName: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || '',
+            role: session.user.user_metadata?.role || 'qiramarrësi',
+          };
+        }
       }
     } else {
       cachedUser = null;
