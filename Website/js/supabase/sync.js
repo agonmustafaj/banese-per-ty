@@ -120,6 +120,45 @@ async function upsertTable(table, rows, toRow) {
   if (error) throw error;
 }
 
+async function syncProperties(properties) {
+  const supabase = getSupabase();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return;
+
+  const uid = session.user.id;
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', uid).single();
+  const isAdmin = profile?.role === 'administrator';
+
+  const rows = (properties || []).filter((p) => isUuid(p.id) && (isAdmin || p.ownerId === uid));
+  if (!rows.length) return;
+
+  for (const prop of rows) {
+    if (!isAdmin && prop.ownerId === uid) {
+      const { data: remote } = await supabase
+        .from('properties')
+        .select('status, updated_at')
+        .eq('id', prop.id)
+        .maybeSingle();
+      if (remote?.status && prop.status === 'në pritje' && remote.status !== 'në pritje') {
+        prop.status = remote.status;
+        if (remote.updated_at) prop.updatedAt = remote.updated_at;
+      }
+    }
+  }
+
+  await upsertTable('properties', rows, propertyToRow);
+}
+
+export async function updatePropertySupabase(property) {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error('Supabase nuk është konfiguruar.');
+  const { error } = await supabase
+    .from('properties')
+    .update(propertyToRow(property))
+    .eq('id', property.id);
+  if (error) throw error;
+}
+
 async function syncProfiles(users) {
   const supabase = getSupabase();
   const { data: { user } } = await supabase.auth.getUser();
@@ -137,7 +176,7 @@ export async function syncAllToSupabase(data) {
   if (!supabase) return;
 
   await syncProfiles(data.users || []);
-  await upsertTable('properties', data.properties, propertyToRow);
+  await syncProperties(data.properties);
   await upsertTable('favorites', data.favorites, favoriteToRow);
   await upsertTable('contract_requests', data.contractRequests, contractRequestToRow);
   await upsertTable('contracts', data.contracts, contractToRow);

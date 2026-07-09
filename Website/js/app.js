@@ -66,6 +66,9 @@ let searchState = { page: 1, filters: {}, advanced: false };
 let paymentPeriod = {};
 let oauthBootstrapError = null;
 let dataLoadError = null;
+let visibilityReloadTimer = null;
+
+const PAGES_RELOAD_DATA = new Set(['home', 'search', 'approvals']);
 
 function showLoading() {
   app.innerHTML = `
@@ -100,7 +103,7 @@ async function navigate(page) {
   if (page !== 'login' && isAuthenticatedSync()) {
     syncUrlState(page);
   }
-  if (page === 'search' && isAuthenticatedSync()) {
+  if (PAGES_RELOAD_DATA.has(page) && isAuthenticatedSync()) {
     await reloadAppData();
   }
   await render();
@@ -118,7 +121,7 @@ function handlePopState() {
       currentPage = resolvePageAfterAuth(user, entry, null);
     }
   }
-  if (currentPage === 'search' && isAuthenticatedSync()) {
+  if (PAGES_RELOAD_DATA.has(currentPage) && isAuthenticatedSync()) {
     reloadAppData().then(() => render());
     return;
   }
@@ -601,6 +604,13 @@ async function init() {
     }
 
     window.addEventListener('popstate', handlePopState);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible' || !isAuthenticatedSync()) return;
+      clearTimeout(visibilityReloadTimer);
+      visibilityReloadTimer = setTimeout(() => {
+        reloadAppData().then(() => render());
+      }, 300);
+    });
     await render();
   } catch (err) {
     console.error('Init error:', err);

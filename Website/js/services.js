@@ -15,7 +15,7 @@ import {
 import { getCurrentUserSync } from './auth.js';
 import { addNotification, addAuditLog } from './services-core.js';
 import { isSupabaseEnabled } from './config.js';
-import { uploadPropertyPhotos, uploadPaymentProof, uploadSignature } from './supabase/sync.js';
+import { uploadPropertyPhotos, uploadPaymentProof, uploadSignature, updatePropertySupabase } from './supabase/sync.js';
 
 const RESERVING_STATUSES = ['pending_signature', 'generated_pdf', 'signed'];
 
@@ -291,6 +291,13 @@ export async function approveProperty(id, approved, reason = '') {
   if (!approved) prop.rejectReason = reason;
   else delete prop.rejectReason;
 
+  try {
+    await updatePropertySupabase(prop);
+    await saveDataAsync(data);
+  } catch (err) {
+    return { success: false, error: err.message || 'Gabim gjatë ruajtjes në server.' };
+  }
+
   addNotification(
     prop.ownerId,
     approved ? 'sukses' : 'refuzim',
@@ -303,11 +310,6 @@ export async function approveProperty(id, approved, reason = '') {
     user?.id,
     `${prop.title} — ${approved ? 'miratuar' : 'refuzuar'}`
   );
-  try {
-    await saveDataAsync(data);
-  } catch (err) {
-    return { success: false, error: err.message || 'Gabim gjatë ruajtjes në server.' };
-  }
   return { success: true };
 }
 
