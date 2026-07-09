@@ -9,6 +9,7 @@ import { getPendingContractsForTenant } from '../services.js';
 import { icons } from '../icons.js';
 import { parseAppUrl, resolvePageAfterAuth } from '../nav.js';
 import { t, renderLangSwitchHtml, attachLangSwitch } from '../i18n.js';
+import { renderHeaderControlsHtml, attachThemeToggle } from '../theme.js';
 
 export function renderLogin(onNavigate, onLangChange) {
   let mode = 'login';
@@ -80,8 +81,8 @@ export function renderLogin(onNavigate, onLangChange) {
       <div class="auth-page">
         <div class="auth-header">
           <div class="auth-header-top">
-            <a href="../index.html" class="brand-link"><h1>Banesë për ty</h1></a>
-            ${renderLangSwitchHtml()}
+            <a href="../index.html" class="brand-link"><h1>Banesë <span>për ty</span></h1></a>
+            ${renderHeaderControlsHtml(renderLangSwitchHtml())}
           </div>
           <p>${t('auth.tagline')}</p>
         </div>
@@ -110,6 +111,7 @@ export function renderLogin(onNavigate, onLangChange) {
       attachEvents(container);
       onLangChange?.();
     });
+    attachThemeToggle(container.querySelector('.header-controls'));
 
     container.querySelector('#toggle-auth')?.addEventListener('click', (e) => {
       e.preventDefault();
@@ -279,7 +281,7 @@ export function renderAppShell(user, page, content, unreadCount = 0) {
             <span class="user-role-badge">${getRoleLabel(role)}</span>
           </div>
           <div class="header-actions">
-            ${renderLangSwitchHtml()}
+            ${renderHeaderControlsHtml(renderLangSwitchHtml())}
             <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="top-nav">
               <span class="nav-toggle-bar"></span>
               <span class="nav-toggle-bar"></span>
@@ -308,7 +310,7 @@ export function renderAppShell(user, page, content, unreadCount = 0) {
           <span class="user-role-badge user-role-badge--sub">${user.fullName} · ${getRoleLabel(role)}</span>
         </div>
         <div class="header-actions sub-header-actions">
-          ${renderLangSwitchHtml()}
+          ${renderHeaderControlsHtml(renderLangSwitchHtml())}
           <button class="logout-link logout-link--compact" id="logout-btn">${t('common.logout')}</button>
         </div>
       </header>
@@ -321,6 +323,7 @@ export function attachShellEvents(container, onNavigate, onLogout, onLangChange)
   const topNav = container.querySelector('#top-nav');
 
   attachLangSwitch(container, () => onLangChange?.());
+  attachThemeToggle(container.querySelector('.header-controls'));
 
   function setNavOpen(isOpen) {
     if (!navToggle || !topNav) return;

@@ -1,0 +1,110 @@
+/* ── Banesë për ty — dizajn i përbashkët (light / dark) ── */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --primary: #38bdf8;
+  --primary-dark: #0284c7;
+  --primary-light: #e0f2fe;
+  --blue: #2563eb;
+  --blue-light: #dbeafe;
+  --green: #16a34a;
+  --green-light: #dcfce7;
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --dark: #0f172a;
+  --text: #1f2937;
+  --text-muted: #64748b;
+  --bg: #f8fcff;
+  --bg-alt: #f0f9ff;
+  --bg-card: #ffffff;
+  --input-bg: #f0f9ff;
+  --input-focus-bg: #ffffff;
+  --header-bg: rgba(248, 252, 255, 0.92);
+  --nav-mobile-bg: #ffffff;
+  --border: #eef0f3;
+  --radius: 18px;
+  --radius-sm: 12px;
+  --shadow: 0 8px 30px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 20px 60px rgba(15, 23, 42, 0.12);
+  --header-height: 64px;
+  --container-pad: 1rem;
+  --tap-min: 44px;
+  --btn-shadow: 0 6px 18px rgba(56, 189, 248, 0.35);
+  --accent-gradient: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%);
+  --auth-gradient: radial-gradient(ellipse 120% 80% at 50% -20%, #e0f2fe 0%, transparent 55%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-alt) 100%);
+  --toggle-active-bg: var(--dark);
+  --toggle-active-fg: #ffffff;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --primary: #38bdf8;
+  --primary-dark: #7dd3fc;
+  --primary-light: rgba(56, 189, 248, 0.14);
+  --blue: #60a5fa;
+  --blue-light: rgba(37, 99, 235, 0.22);
+  --green: #4ade80;
+  --green-light: rgba(74, 222, 128, 0.15);
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --dark: #f8fafc;
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+  --bg: #0b1220;
+  --bg-alt: #0f172a;
+  --bg-card: #1e293b;
+  --input-bg: #0f172a;
+  --input-focus-bg: #1e293b;
+  --header-bg: rgba(15, 23, 42, 0.94);
+  --nav-mobile-bg: #1e293b;
+  --border: #334155;
+  --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 20px 60px rgba(0, 0, 0, 0.45);
+  --btn-shadow: 0 6px 18px rgba(56, 189, 248, 0.2);
+  --auth-gradient: radial-gradient(ellipse 120% 80% at 50% -20%, rgba(56, 189, 248, 0.12) 0%, transparent 55%),
+    linear-gradient(180deg, var(--bg) 0%, var(--bg-alt) 100%);
+  --toggle-active-bg: var(--primary);
+  --toggle-active-fg: #0f172a;
+}
+
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.theme-switch {
+  display: flex;
+  flex-shrink: 0;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  padding: 2px;
+  background: var(--bg-card);
+}
+
+.theme-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--text-muted);
+  min-width: 2.1rem;
+  height: 1.85rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.theme-btn:hover { color: var(--text); }
+.theme-btn.active {
+  background: var(--toggle-active-bg);
+  color: var(--toggle-active-fg);
+}

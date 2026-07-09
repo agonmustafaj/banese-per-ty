@@ -68,6 +68,7 @@ import {
   patchContractNavBadge,
   runWithSubmitGuard,
 } from './ui-guard.js';
+import { initTheme } from './theme.js';
 
 const app = document.getElementById('app');
 let currentPage = 'home';
@@ -744,6 +745,7 @@ async function saveContractPdf(contract, data) {
 
 async function init() {
   showLoading();
+  initTheme();
   initI18n();
   initUIGuard(app);
   onLangChange(() => {
