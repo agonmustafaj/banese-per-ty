@@ -8,6 +8,8 @@
 <meta name="keywords" content="banesa me qera Kosovë, qera apartamente Prishtinë, kontrata qeraje online, platformë qeraje, banesa për qeramarrës, qeradhënës Kosovë, rent apartments Kosovo" />
 <meta name="author" content="Agon Mustafaj" />
 <meta name="robots" content="index, follow" />
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
+<link rel="apple-touch-icon" href="favicon.svg" />
 <link rel="canonical" href="https://banesaperty.example.com/" />
 <link rel="alternate" hreflang="sq" href="https://banesaperty.example.com/?lang=sq" />
 <link rel="alternate" hreflang="en" href="https://banesaperty.example.com/?lang=en" />
@@ -25,7 +27,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="css/landing.css?v=5" />
+<link rel="stylesheet" href="css/landing.css?v=6" />
 
 <script type="application/ld+json">
 {
@@ -45,7 +47,7 @@
 <body>
 
 <header class="site-header" id="top">
-  <div class="container header-inner">
+  <div class="container header-shell">
     <a href="#top" class="logo">
       <svg class="logo-mark" width="34" height="34" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
         <rect width="40" height="40" rx="11" fill="url(#lgGradHeader)"/>
@@ -59,9 +61,9 @@
           </linearGradient>
         </defs>
       </svg>
-      Banesë <span>për ty</span>
+      <span class="logo-text">Banesë <span>për ty</span></span>
     </a>
-    <nav class="main-nav" id="main-nav">
+    <nav class="main-nav" id="main-nav" aria-label="Kryesore">
       <a href="#si-funksionon" data-i18n="nav.how">Si Funksionon</a>
       <a href="#per-kend" data-i18n="nav.forWhom">Për Kë Është</a>
       <a href="#veçorite" data-i18n="nav.features">Veçoritë</a>
@@ -69,10 +71,10 @@
     </nav>
     <div class="header-actions">
       <div class="lang-switch" id="lang-switch" role="group" aria-label="Zgjedh gjuhën / Choose language">
-        <button type="button" class="lang-btn" data-lang="sq">SQ</button>
-        <button type="button" class="lang-btn" data-lang="en">EN</button>
+        <button type="button" class="lang-btn" data-lang="sq" aria-label="Shqip">SQ</button>
+        <button type="button" class="lang-btn" data-lang="en" aria-label="English">EN</button>
       </div>
-      <a href="Website/index.html" class="btn btn-primary" data-i18n="header.cta">Hyr në Platformë</a>
+      <a href="Website/index.html" class="btn btn-primary header-cta" data-i18n="header.cta">Hyr në Platformë</a>
       <button class="nav-toggle" id="nav-toggle" aria-label="Hap menynë" aria-expanded="false">
         <span class="nav-toggle-bar"></span>
         <span class="nav-toggle-bar"></span>
@@ -275,6 +277,6 @@
   </div>
 </footer>
 
-<script src="js/landing.js?v=3"></script>
+<script src="js/landing.js?v=4"></script>
 </body>
 </html>

@@ -2,18 +2,21 @@ document.getElementById('year').textContent = new Date().getFullYear();
 
 const navToggle = document.getElementById('nav-toggle');
 const mainNav = document.getElementById('main-nav');
+
+function setNavOpen(isOpen) {
+  if (!navToggle || !mainNav) return;
+  mainNav.classList.toggle('nav-open', isOpen);
+  navToggle.classList.toggle('is-open', isOpen);
+  navToggle.setAttribute('aria-expanded', String(isOpen));
+  document.body.classList.toggle('nav-menu-open', isOpen);
+}
+
 if (navToggle && mainNav) {
   navToggle.addEventListener('click', () => {
-    const isOpen = mainNav.classList.toggle('nav-open');
-    navToggle.classList.toggle('is-open', isOpen);
-    navToggle.setAttribute('aria-expanded', String(isOpen));
+    setNavOpen(!mainNav.classList.contains('nav-open'));
   });
   mainNav.querySelectorAll('a').forEach((link) => {
-    link.addEventListener('click', () => {
-      mainNav.classList.remove('nav-open');
-      navToggle.classList.remove('is-open');
-      navToggle.setAttribute('aria-expanded', 'false');
-    });
+    link.addEventListener('click', () => setNavOpen(false));
   });
 }
 
@@ -219,7 +222,10 @@ function applyLang(lang) {
 }
 
 document.querySelectorAll('.lang-btn').forEach((btn) => {
-  btn.addEventListener('click', () => applyLang(btn.getAttribute('data-lang')));
+  btn.addEventListener('click', () => {
+    applyLang(btn.getAttribute('data-lang'));
+    setNavOpen(false);
+  });
 });
 
 applyLang(detectDefaultLang());
