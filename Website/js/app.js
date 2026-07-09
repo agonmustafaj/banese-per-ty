@@ -5,6 +5,7 @@ import {
   logout,
   updateProfile,
   changePassword,
+  initAuth,
 } from './auth.js';
 import { loadDataAsync } from './data.js';
 import { renderLogin, renderAppShell, attachShellEvents } from './views/layout.js';
@@ -66,7 +67,10 @@ async function navigate(page) {
 async function render() {
   if (!isAuthenticatedSync() || currentPage === 'login') {
     currentPage = 'login';
-    const { html, attachEvents } = renderLogin((p) => navigate(p));
+    const { html, attachEvents } = renderLogin(async (p) => {
+      if (p === 'home') await loadDataAsync();
+      await navigate(p);
+    });
     app.innerHTML = html;
     attachEvents(app);
     return;
@@ -75,7 +79,10 @@ async function render() {
   const user = (await getCurrentUser()) || getCurrentUserSync();
   if (!user) {
     currentPage = 'login';
-    const { html, attachEvents } = renderLogin((p) => navigate(p));
+    const { html, attachEvents } = renderLogin(async (p) => {
+      if (p === 'home') await loadDataAsync();
+      await navigate(p);
+    });
     app.innerHTML = html;
     attachEvents(app);
     return;
@@ -199,7 +206,7 @@ function attachPageEvents(page, user) {
         }
       }
 
-      const result = saveProperty({
+      const result = await saveProperty({
         id: existing?.id,
         title: fd.get('title'),
         address: fd.get('address'),
@@ -287,8 +294,8 @@ function attachPageEvents(page, user) {
       btn.addEventListener('click', () => {
         const payment = loadData().payments.find((p) => p.id === btn.dataset.id);
         if (!payment) return;
-        showPaymentProofModal(app, payment, (proof, onError, close) => {
-          const result = submitPaymentProof(btn.dataset.id, proof);
+        showPaymentProofModal(app, payment, async (proof, onError, close) => {
+          const result = await submitPaymentProof(btn.dataset.id, proof);
           if (!result.success) { onError(result.error); return; }
           close();
           alert(result.approved
@@ -347,8 +354,8 @@ function attachPageEvents(page, user) {
         const data = loadData();
         const contract = data.contracts.find((c) => c.id === btn.dataset.id);
         if (!contract) return;
-        showSignatureModal(app, contract, (signature) => {
-          const result = signContract(btn.dataset.id, true, signature);
+        showSignatureModal(app, contract, async (signature) => {
+          const result = await signContract(btn.dataset.id, true, signature);
           if (!result.success) { alert(result.error); return; }
           alert('Kontrata u nënshkrua elektronikisht dhe është tani aktive!');
           render();
@@ -356,9 +363,9 @@ function attachPageEvents(page, user) {
       });
     });
     app.querySelectorAll('.sign-reject-btn').forEach((btn) => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         if (confirm('Refuzoni kontratën?')) {
-          signContract(btn.dataset.id, false);
+          await signContract(btn.dataset.id, false);
           alert('Kontrata u anulua.');
           render();
         }
@@ -429,6 +436,7 @@ async function saveContractPdf(contract, data) {
 }
 
 async function init() {
+  await initAuth();
   await loadDataAsync();
   await render();
 }

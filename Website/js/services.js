@@ -13,6 +13,8 @@ import {
 } from './data.js';
 import { getCurrentUserSync } from './auth.js';
 import { addNotification, addAuditLog } from './services-core.js';
+import { isSupabaseEnabled } from './config.js';
+import { uploadPropertyPhotos, uploadPaymentProof, uploadSignature } from './supabase/sync.js';
 
 const RESERVING_STATUSES = ['pending_signature', 'generated_pdf', 'signed'];
 
@@ -178,7 +180,7 @@ export function validatePropertyInput(property) {
   return errors;
 }
 
-export function saveProperty(property) {
+export async function saveProperty(property) {
   const data = loadData();
   const user = getCurrentUserSync();
   if (!user) return { success: false, error: 'Duhet të jeni i kyçur.' };
@@ -192,11 +194,19 @@ export function saveProperty(property) {
     Object.assign(existing, property);
     if (wasPublished) existing.status = 'në pritje';
     existing.updatedAt = new Date().toISOString();
-    addNotification(
-      data.users.find((u) => u.role === 'administrator')?.id || 'u3',
-      'miratim',
-      `Prona "${existing.title}" kërkon miratim pas ndryshimit.`
-    );
+
+    if (isSupabaseEnabled()) {
+      try {
+        existing.photos = await uploadPropertyPhotos(user.id, existing.id, existing.photos);
+      } catch (err) {
+        return { success: false, error: err.message || 'Gabim gjatë ngarkimit të fotove.' };
+      }
+    }
+
+    const admin = data.users.find((u) => u.role === 'administrator');
+    if (admin) {
+      addNotification(admin.id, 'miratim', `Prona "${existing.title}" kërkon miratim pas ndryshimit.`);
+    }
     addAuditLog('property_update', user.id, `Përditësim pronë: ${existing.title}`);
     saveData(data);
     return { success: true, property: existing, pendingApproval: true };
@@ -204,7 +214,7 @@ export function saveProperty(property) {
 
   const newProp = {
     ...property,
-    id: generateId('p'),
+    id: property.id || generateId('p'),
     ownerId: user.id,
     status: 'në pritje',
     occupied: false,
@@ -213,6 +223,15 @@ export function saveProperty(property) {
     photos: property.photos || [],
     nearCampus: property.nearCampus || '',
   };
+
+  if (isSupabaseEnabled()) {
+    try {
+      newProp.photos = await uploadPropertyPhotos(user.id, newProp.id, newProp.photos);
+    } catch (err) {
+      return { success: false, error: err.message || 'Gabim gjatë ngarkimit të fotove.' };
+    }
+  }
+
   data.properties.push(newProp);
   const admin = data.users.find((u) => u.role === 'administrator');
   if (admin) {
@@ -441,7 +460,7 @@ export function createContract({ propertyId, tenantId, startDate, endDate, reque
   return { success: true, contract };
 }
 
-export function signContract(contractId, accepted, signature = null) {
+export async function signContract(contractId, accepted, signature = null) {
   const data = loadData();
   const user = getCurrentUserSync();
   const contract = data.contracts.find((c) => c.id === contractId);
@@ -468,11 +487,21 @@ export function signContract(contractId, accepted, signature = null) {
     return { success: false, error: 'Kërkohet nënshkrimi digjital (vizatoni ose shkruani emrin tuaj të plotë).' };
   }
 
-  contract.signature = {
+  let finalSignature = {
     dataUrl: hasDrawnSignature || null,
     typedName: hasTypedSignature || null,
     signedAt: new Date().toISOString(),
   };
+
+  if (isSupabaseEnabled() && hasDrawnSignature) {
+    try {
+      finalSignature = await uploadSignature(user.id, contractId, finalSignature);
+    } catch (err) {
+      return { success: false, error: err.message || 'Gabim gjatë ruajtjes së nënshkrimit.' };
+    }
+  }
+
+  contract.signature = finalSignature;
   contract.status = 'signed';
   contract.signedAt = new Date().toISOString();
   contract.pdfUrl = `#pdf-${contract.id}`;
@@ -565,7 +594,7 @@ function isProofAdequate(proof) {
   return true;
 }
 
-export function submitPaymentProof(paymentId, proof) {
+export async function submitPaymentProof(paymentId, proof) {
   const data = loadData();
   const user = getCurrentUserSync();
   const payment = data.payments.find((p) => p.id === paymentId);
@@ -581,7 +610,17 @@ export function submitPaymentProof(paymentId, proof) {
     return { success: false, error: 'Dëshmia e pagesës tejkalon 5MB.' };
   }
 
-  payment.proof = { name: proof.name, dataUrl: proof.dataUrl, type: proof.type, uploadedAt: new Date().toISOString() };
+  let storedProof = { name: proof.name, dataUrl: proof.dataUrl, type: proof.type, uploadedAt: new Date().toISOString(), size: proof.size };
+
+  if (isSupabaseEnabled()) {
+    try {
+      storedProof = await uploadPaymentProof(user.id, paymentId, proof);
+    } catch (err) {
+      return { success: false, error: err.message || 'Gabim gjatë ngarkimit të dëshmisë.' };
+    }
+  }
+
+  payment.proof = storedProof;
 
   if (isProofAdequate(proof)) {
     payment.status = 'paguar';

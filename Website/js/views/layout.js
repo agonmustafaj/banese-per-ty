@@ -215,8 +215,15 @@ export function renderLogin(onNavigate) {
           userType: fd.get('userType') || 'employed',
           campusId: fd.get('campusId') || '',
         });
-        if (result.success) onNavigate('home');
-        else showAlert(container, 'error', result.error);
+        if (result.success) {
+          if (result.needsConfirmation) {
+            showAlert(container, 'info', result.message);
+            mode = 'login';
+            setTimeout(() => { container.innerHTML = render(); attachEvents(container); }, 2000);
+          } else {
+            onNavigate('home');
+          }
+        } else showAlert(container, 'error', result.error);
       } else {
         const result = await login(email, password, fd.get('remember') === 'on');
         if (result.success) onNavigate('home');

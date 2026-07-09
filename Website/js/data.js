@@ -1,4 +1,6 @@
 import { hashPassword } from './crypto.js';
+import { isSupabaseEnabled } from './config.js';
+import { loadAllFromSupabase, syncAllToSupabase } from './supabase/sync.js';
 
 const STORAGE_KEY = 'banese_per_ty_v4';
 export const MAX_LOGIN_ATTEMPTS = 3;
@@ -317,6 +319,8 @@ function migrateData(data) {
 }
 
 let demoHashesReady = false;
+let memoryCache = null;
+let syncInFlight = null;
 
 async function ensureDemoHashes(data) {
   if (demoHashesReady) return;
@@ -336,6 +340,7 @@ async function ensureDemoHashes(data) {
 }
 
 export function loadData() {
+  if (memoryCache) return migrateData(cloneData(memoryCache));
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) return migrateData(JSON.parse(stored));
@@ -344,10 +349,23 @@ export function loadData() {
 }
 
 export async function loadDataAsync(retries = 2) {
+  if (isSupabaseEnabled()) {
+    for (let i = 0; i <= retries; i++) {
+      try {
+        memoryCache = migrateData(await loadAllFromSupabase());
+        return memoryCache;
+      } catch (err) {
+        if (i === retries) throw err;
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    }
+  }
+
   for (let i = 0; i <= retries; i++) {
     try {
       const data = loadData();
       await ensureDemoHashes(data);
+      memoryCache = data;
       return data;
     } catch (err) {
       if (i === retries) throw err;
@@ -358,8 +376,23 @@ export async function loadDataAsync(retries = 2) {
 }
 
 export function saveData(data) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  memoryCache = data;
   refreshAdminStats(data);
+
+  if (isSupabaseEnabled()) {
+    if (syncInFlight) syncInFlight = syncInFlight.then(() => syncAllToSupabase(data));
+    else syncInFlight = syncAllToSupabase(data).finally(() => { syncInFlight = null; });
+    return;
+  }
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+export async function saveDataAsync(data) {
+  memoryCache = data;
+  refreshAdminStats(data);
+  if (isSupabaseEnabled()) await syncAllToSupabase(data);
+  else localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
 function refreshAdminStats(data) {
@@ -372,10 +405,14 @@ function refreshAdminStats(data) {
 
 export function resetDemoData() {
   localStorage.removeItem(STORAGE_KEY);
+  memoryCache = null;
   demoHashesReady = false;
 }
 
 export function generateId(prefix) {
+  if (isSupabaseEnabled() && typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
   return `${prefix}${Date.now()}${Math.random().toString(36).slice(2, 6)}`;
 }
 

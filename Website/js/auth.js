@@ -13,10 +13,15 @@ import {
   generateCode,
 } from './crypto.js';
 import { addAuditLog, addNotification } from './services-core.js';
+import { isSupabaseEnabled } from './config.js';
+import { getSupabase } from './supabase/client.js';
+import { fetchProfile, updateProfileSupabase } from './supabase/sync.js';
 
 const SESSION_KEY = 'banese_session_token';
 const PENDING_2FA_KEY = 'banese_pending_2fa';
 const REGISTER_ROLES = ['qiradhënësi', 'qiramarrësi'];
+
+let cachedUser = null;
 
 async function withRetry(fn, retries = 2) {
   for (let i = 0; i <= retries; i++) {
@@ -54,7 +59,51 @@ function clearSession() {
   sessionStorage.removeItem(PENDING_2FA_KEY);
 }
 
+async function cacheUser(user) {
+  cachedUser = user;
+  sessionStorage.setItem('banese_user_cache', JSON.stringify({ userId: user.id }));
+}
+
+export async function initAuth() {
+  if (!isSupabaseEnabled()) return;
+  const supabase = getSupabase();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user) {
+    try {
+      cachedUser = await fetchProfile(session.user.id);
+    } catch (_) {
+      cachedUser = null;
+    }
+  } else {
+    cachedUser = null;
+  }
+
+  supabase.auth.onAuthStateChange(async (_event, session) => {
+    if (session?.user) {
+      try {
+        cachedUser = await fetchProfile(session.user.id);
+      } catch (_) {
+        cachedUser = null;
+      }
+    } else {
+      cachedUser = null;
+    }
+  });
+}
+
 export async function getCurrentUser() {
+  if (isSupabaseEnabled()) {
+    const supabase = getSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      cachedUser = null;
+      return null;
+    }
+    if (cachedUser?.id === user.id) return cachedUser;
+    cachedUser = await fetchProfile(user.id);
+    return cachedUser;
+  }
+
   const token = getStoredToken();
   if (!token) return null;
   const payload = await verifySessionToken(token);
@@ -69,14 +118,18 @@ export async function getCurrentUser() {
 }
 
 export function getCurrentUserSync() {
+  if (isSupabaseEnabled()) return cachedUser;
+
   const data = loadData();
   if (sessionStorage.getItem(PENDING_2FA_KEY)) return null;
+
+  if (cachedUser) return cachedUser;
 
   try {
     const raw = sessionStorage.getItem('banese_user_cache');
     if (raw) {
-      const cached = JSON.parse(raw);
-      const user = data.users.find((u) => u.id === cached.userId);
+      const parsed = JSON.parse(raw);
+      const user = data.users.find((u) => u.id === parsed.userId);
       if (user) return user;
     }
   } catch (_) {}
@@ -96,11 +149,26 @@ export function getCurrentUserSync() {
   return null;
 }
 
-async function cacheUser(user) {
-  sessionStorage.setItem('banese_user_cache', JSON.stringify({ userId: user.id }));
-}
-
 export async function login(email, password, remember = false) {
+  if (isSupabaseEnabled()) {
+    return withRetry(async () => {
+      const supabase = getSupabase();
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.toLowerCase().trim(),
+        password,
+      });
+      if (error) {
+        const msg = error.message.includes('Invalid login')
+          ? 'Email ose fjalëkalim i pasaktë.'
+          : error.message;
+        return { success: false, error: msg };
+      }
+      cachedUser = await fetchProfile(data.user.id);
+      addAuditLog('login', cachedUser.id, `${cachedUser.fullName} u kyç në sistem.`);
+      return { success: true, user: cachedUser };
+    });
+  }
+
   return withRetry(async () => {
     await loadDataAsync();
     const data = loadData();
@@ -180,6 +248,10 @@ export async function login(email, password, remember = false) {
 }
 
 export async function verify2fa(email, code, remember = false) {
+  if (isSupabaseEnabled()) {
+    return { success: false, error: '2FA nuk është aktiv me Supabase Auth në këtë version.' };
+  }
+
   const data = loadData();
   const key = email.toLowerCase().trim();
   const pending = data.pending2fa[key];
@@ -204,9 +276,40 @@ export async function register({ fullName, email, password, role, userType, camp
     return { success: false, error: 'Zgjidhni rolin: Qeradhënës ose Qeramarrës.' };
   }
 
-  const data = loadData();
   const normalizedEmail = email.toLowerCase().trim();
 
+  if (isSupabaseEnabled()) {
+    return withRetry(async () => {
+      const supabase = getSupabase();
+      const { data, error } = await supabase.auth.signUp({
+        email: normalizedEmail,
+        password,
+        options: {
+          data: {
+            full_name: fullName.trim(),
+            role,
+            user_type: userType || 'employed',
+            campus_id: campusId || '',
+          },
+        },
+      });
+      if (error) return { success: false, error: error.message };
+
+      if (!data.session) {
+        return {
+          success: true,
+          needsConfirmation: true,
+          message: 'Kontrolloni email-in për të konfirmuar llogarinë, pastaj kyçuni.',
+        };
+      }
+
+      cachedUser = await fetchProfile(data.user.id);
+      addAuditLog('register', cachedUser.id, `Regjistrim i ri: ${cachedUser.fullName}`);
+      return { success: true, user: cachedUser };
+    });
+  }
+
+  const data = loadData();
   if (data.users.some((u) => u.email.toLowerCase() === normalizedEmail)) {
     return { success: false, error: 'Ky email është i regjistruar tashmë.' };
   }
@@ -234,8 +337,20 @@ export async function register({ fullName, email, password, role, userType, camp
 }
 
 export async function requestPasswordReset(email) {
-  const data = loadData();
   const key = email.toLowerCase().trim();
+
+  if (isSupabaseEnabled()) {
+    const supabase = getSupabase();
+    const redirectTo = `${window.location.origin}${window.location.pathname}`;
+    const { error } = await supabase.auth.resetPasswordForEmail(key, { redirectTo });
+    if (error) return { success: false, error: error.message };
+    return {
+      success: true,
+      message: 'Nëse email ekziston, do të merrni udhëzime për rivendosje.',
+    };
+  }
+
+  const data = loadData();
   const user = data.users.find((u) => u.email.toLowerCase() === key);
   if (!user) {
     return { success: true, message: 'Nëse email ekziston, do të merrni udhëzime për rivendosje.' };
@@ -263,9 +378,18 @@ export async function requestPasswordReset(email) {
 }
 
 export async function resetPassword(token, newPassword) {
-  if (!newPassword || newPassword.length < 4) {
-    return { success: false, error: 'Fjalëkalimi duhet të ketë të paktën 4 karaktere.' };
+  if (!newPassword || newPassword.length < 6) {
+    return { success: false, error: 'Fjalëkalimi duhet të ketë të paktën 6 karaktere.' };
   }
+
+  if (isSupabaseEnabled()) {
+    const supabase = getSupabase();
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) return { success: false, error: error.message };
+    addAuditLog('password_reset', cachedUser?.id, 'Fjalëkalimi u rivendos.');
+    return { success: true };
+  }
+
   const data = loadData();
   const entry = data.passwordResetTokens.find(
     (t) => t.token === token && !t.used && Date.now() < t.expiresAt
@@ -286,6 +410,21 @@ export async function resetPassword(token, newPassword) {
 }
 
 export async function updateProfile(userId, updates) {
+  if (isSupabaseEnabled()) {
+    try {
+      const user = await updateProfileSupabase(userId, updates);
+      cachedUser = user;
+      const data = loadData();
+      const idx = data.users.findIndex((u) => u.id === userId);
+      if (idx >= 0) data.users[idx] = user;
+      else data.users.push(user);
+      saveData(data);
+      return { success: true, user };
+    } catch (err) {
+      return { success: false, error: err.message || 'Gabim gjatë përditësimit.' };
+    }
+  }
+
   const data = loadData();
   const user = data.users.find((u) => u.id === userId);
   if (!user) return { success: false, error: 'Përdoruesi nuk u gjet.' };
@@ -306,15 +445,34 @@ export async function updateProfile(userId, updates) {
 }
 
 export async function changePassword(userId, currentPassword, newPassword) {
+  if (!newPassword || newPassword.length < 6) {
+    return { success: false, error: 'Fjalëkalimi i ri duhet të ketë të paktën 6 karaktere.' };
+  }
+
+  if (isSupabaseEnabled()) {
+    const supabase = getSupabase();
+    const email = cachedUser?.email;
+    if (!email) return { success: false, error: 'Sesioni nuk është valid.' };
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password: currentPassword,
+    });
+    if (signInError) return { success: false, error: 'Fjalëkalimi aktual është i gabuar.' };
+
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) return { success: false, error: error.message };
+
+    addAuditLog('password_change', userId, 'Fjalëkalimi u ndryshua.');
+    return { success: true };
+  }
+
   const data = loadData();
   const user = data.users.find((u) => u.id === userId);
   if (!user) return { success: false, error: 'Përdoruesi nuk u gjet.' };
 
   const valid = await verifyPassword(currentPassword, user.passwordHash);
   if (!valid) return { success: false, error: 'Fjalëkalimi aktual është i gabuar.' };
-  if (!newPassword || newPassword.length < 4) {
-    return { success: false, error: 'Fjalëkalimi i ri duhet të ketë të paktën 4 karaktere.' };
-  }
 
   user.passwordHash = await hashPassword(newPassword);
   saveData(data);
@@ -322,7 +480,12 @@ export async function changePassword(userId, currentPassword, newPassword) {
   return { success: true };
 }
 
-export function logout() {
+export async function logout() {
+  if (isSupabaseEnabled()) {
+    const supabase = getSupabase();
+    await supabase.auth.signOut();
+  }
+  cachedUser = null;
   clearSession();
   sessionStorage.removeItem('banese_user_cache');
 }
@@ -333,10 +496,16 @@ export async function isAuthenticated() {
 }
 
 export function isAuthenticatedSync() {
+  if (isSupabaseEnabled()) return !!cachedUser;
   return !!getStoredToken() && !sessionStorage.getItem(PENDING_2FA_KEY);
 }
 
 export async function unblockAccount(email, adminId) {
+  if (isSupabaseEnabled()) {
+    addAuditLog('account_unblocked', adminId, `Llogaria ${email} u zhbllokua (Supabase Auth).`);
+    return { success: true };
+  }
+
   const data = loadData();
   const key = email.toLowerCase().trim();
   delete data.blockedAccounts[key];
