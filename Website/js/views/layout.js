@@ -1,0 +1,325 @@
+import {
+  login,
+  register,
+  verify2fa,
+  requestPasswordReset,
+  resetPassword,
+} from '../auth.js';
+import { getRoleLabel } from '../data.js';
+import { icons } from '../icons.js';
+
+export function renderLogin(onNavigate) {
+  let mode = 'login';
+  let selectedRole = 'qiradhënësi';
+  let selectedUserType = 'employed';
+  let pending2faEmail = '';
+  let pending2faRemember = false;
+  let resetToken = '';
+
+  function roleSelectorHtml() {
+    return `
+      <div class="form-group">
+        <label>Roli i llogarisë</label>
+        <div class="role-selector" id="role-selector">
+          <div class="role-option ${selectedRole === 'qiradhënësi' ? 'active' : ''}" data-role="qiradhënësi">Qeradhënës</div>
+          <div class="role-option ${selectedRole === 'qiramarrësi' ? 'active' : ''}" data-role="qiramarrësi">Qeramarrës</div>
+        </div>
+      </div>`;
+  }
+
+  function userTypeHtml() {
+    return `
+      <div class="form-group">
+        <label>Lloji i përdoruesit</label>
+        <select name="userType" id="user-type-select">
+          <option value="employed" ${selectedUserType === 'employed' ? 'selected' : ''}>I punësuar</option>
+          <option value="student" ${selectedUserType === 'student' ? 'selected' : ''}>Student</option>
+        </select>
+      </div>
+      <div class="form-group" id="campus-group" style="${selectedUserType === 'student' ? '' : 'display:none'}">
+        <label>Kampus / Fakultet</label>
+        <select name="campusId">
+          <option value="up">Universiteti i Prishtinës</option>
+          <option value="uibm">UIBM</option>
+          <option value="ubt">UBT</option>
+          <option value="upz">UPZ — Prizren</option>
+        </select>
+      </div>`;
+  }
+
+  function render() {
+    const titles = {
+      login: 'Kyçu në Llogari',
+      register: 'Regjistrohu',
+      '2fa': 'Verifikim Shtesë (2FA)',
+      forgot: 'Harrove Fjalëkalimin?',
+      reset: 'Rivendos Fjalëkalimin',
+    };
+
+    let body = '';
+    if (mode === '2fa') {
+      body = `
+        <p class="field-hint">Kodi u dërgua te email (simuluar te njoftimet). Vlen 5 minuta.</p>
+        <form id="auth-form">
+          <div class="form-group"><label>Kodi 6-shifror</label><input name="code" required pattern="[0-9]{6}" maxlength="6" placeholder="123456" /></div>
+          <button type="submit" class="btn btn-primary btn-block btn-lg">Verifiko</button>
+        </form>`;
+    } else if (mode === 'forgot') {
+      body = `
+        <p class="field-hint">Vendosni email-in. Do të merrni token rivendosjeje (simuluar).</p>
+        <form id="auth-form">
+          <div class="form-group"><label>Email</label><input type="email" name="email" required /></div>
+          <button type="submit" class="btn btn-primary btn-block">Dërgo Udhëzimet</button>
+        </form>`;
+    } else if (mode === 'reset') {
+      body = `
+        <form id="auth-form">
+          <div class="form-group"><label>Token rivendosjeje</label><input name="token" required value="${resetToken}" /></div>
+          <div class="form-group"><label>Fjalëkalimi i ri</label><input type="password" name="newPassword" required minlength="4" /></div>
+          <div class="form-group"><label>Konfirmo</label><input type="password" name="confirmPassword" required minlength="4" /></div>
+          <button type="submit" class="btn btn-primary btn-block">Rivendos</button>
+        </form>`;
+    } else {
+      body = `
+        <form id="auth-form">
+          ${mode === 'register' ? `
+            <div class="form-group"><label>Emri i plotë</label><input type="text" name="fullName" required /></div>
+            ${roleSelectorHtml()}
+            ${userTypeHtml()}
+          ` : ''}
+          <div class="form-group"><label>${icons.mail} Email</label><input type="email" name="email" required placeholder="email@example.com" /></div>
+          <div class="form-group"><label>${icons.lock} Fjalëkalimi</label><input type="password" name="password" required minlength="4" /></div>
+          ${mode === 'login' ? `
+            <div class="form-row">
+              <label class="checkbox-label"><input type="checkbox" name="remember" /> Më mbaj të kyçur</label>
+              <a href="#" id="forgot-link">Harrove fjalëkalimin?</a>
+            </div>` : ''}
+          <button type="submit" class="btn btn-primary btn-block btn-lg">${mode === 'register' ? 'Regjistrohu' : 'Kyçu'}</button>
+        </form>
+        <div class="auth-footer">
+          ${mode === 'register' ? 'Ke llogari?' : 'Nuk ke llogari?'}
+          <a href="#" id="toggle-auth">${mode === 'register' ? ' Kyçu' : ' Regjistrohu'}</a>
+        </div>`;
+    }
+
+    return `
+      <div class="auth-page">
+        <div class="auth-header">
+          <a href="../index.html" class="brand-link"><h1>Banesë për ty</h1></a>
+          <p>Platforma për Menaxhimin e Qerasë</p>
+        </div>
+        <div class="auth-card">
+          <div class="auth-card-header">
+            <div class="icon-box">${icons.login}</div>
+            <h2>${titles[mode]}</h2>
+          </div>
+          <div class="auth-card-body">
+            <div id="auth-alert"></div>
+            ${body}
+            ${mode !== 'login' && mode !== 'register' ? `<a href="#" id="back-login" class="auth-back">← Kthehu te kyçja</a>` : ''}
+          </div>
+        </div>
+        <div class="demo-notice">
+          <strong>Llogaritë demo:</strong> qeradhenes@example.com / 123456 · qeramarreses@example.com / 123456 · admin@example.com / 123456
+        </div>
+      </div>`;
+  }
+
+  function showAlert(container, type, message) {
+    const el = container.querySelector('#auth-alert');
+    if (el) el.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+  }
+
+  function attachEvents(container) {
+    container.querySelector('#toggle-auth')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      mode = mode === 'register' ? 'login' : 'register';
+      container.innerHTML = render();
+      attachEvents(container);
+    });
+
+    container.querySelector('#forgot-link')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      mode = 'forgot';
+      container.innerHTML = render();
+      attachEvents(container);
+    });
+
+    container.querySelector('#back-login')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      mode = 'login';
+      container.innerHTML = render();
+      attachEvents(container);
+    });
+
+    container.querySelectorAll('.role-option').forEach((el) => {
+      el.addEventListener('click', () => {
+        selectedRole = el.dataset.role;
+        container.innerHTML = render();
+        attachEvents(container);
+      });
+    });
+
+    container.querySelector('#user-type-select')?.addEventListener('change', (e) => {
+      selectedUserType = e.target.value;
+      const campus = container.querySelector('#campus-group');
+      if (campus) campus.style.display = selectedUserType === 'student' ? '' : 'none';
+    });
+
+    container.querySelector('#auth-form')?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(e.target);
+
+      if (mode === '2fa') {
+        const result = await verify2fa(pending2faEmail, fd.get('code'), pending2faRemember);
+        if (result.success) onNavigate('home');
+        else showAlert(container, 'error', result.error);
+        return;
+      }
+
+      if (mode === 'forgot') {
+        const result = await requestPasswordReset(fd.get('email'));
+        if (result.demoToken) resetToken = result.demoToken;
+        showAlert(container, 'info', `${result.message}${result.demoToken ? ` Token: ${result.demoToken}` : ''}`);
+        setTimeout(() => {
+          mode = 'reset';
+          container.innerHTML = render();
+          attachEvents(container);
+        }, 1500);
+        return;
+      }
+
+      if (mode === 'reset') {
+        if (fd.get('newPassword') !== fd.get('confirmPassword')) {
+          showAlert(container, 'error', 'Fjalëkalimet nuk përputhen.');
+          return;
+        }
+        const result = await resetPassword(fd.get('token'), fd.get('newPassword'));
+        if (result.success) {
+          showAlert(container, 'success', 'Fjalëkalimi u rivendos! Kyçuni tani.');
+          mode = 'login';
+          setTimeout(() => { container.innerHTML = render(); attachEvents(container); }, 1200);
+        } else showAlert(container, 'error', result.error);
+        return;
+      }
+
+      const email = fd.get('email');
+      const password = fd.get('password');
+
+      if (mode === 'register') {
+        const result = await register({
+          fullName: fd.get('fullName'),
+          email,
+          password,
+          role: selectedRole,
+          userType: fd.get('userType') || 'employed',
+          campusId: fd.get('campusId') || '',
+        });
+        if (result.success) onNavigate('home');
+        else showAlert(container, 'error', result.error);
+      } else {
+        const result = await login(email, password, fd.get('remember') === 'on');
+        if (result.success) onNavigate('home');
+        else if (result.requires2fa) {
+          pending2faEmail = result.email;
+          pending2faRemember = fd.get('remember') === 'on';
+          mode = '2fa';
+          container.innerHTML = render();
+          attachEvents(container);
+          showAlert(container, 'info', `Kodi 2FA u dërgua (demo: ${result.demoCode}). Kontrolloni njoftimet pas kyçjes.`);
+        } else showAlert(container, 'error', result.error);
+      }
+    });
+  }
+
+  return { html: render(), attachEvents };
+}
+
+function getPageTitle(role, page) {
+  const titles = {
+    profile: 'Profili Im',
+    'add-property': 'Shto Banesë të Re',
+    search: 'Kërko Banesa',
+    favorites: 'Të Preferuarat',
+    payments: 'Pagesat e Banesës',
+    expenses: 'Menaxho Shpenzimet',
+    contract: 'Kontrata',
+    approvals: 'Miratime Admin',
+    notifications: 'Njoftimet',
+  };
+  if (titles[page]) return titles[page];
+  if (role === 'qiradhënësi') return 'Pronat e Mia';
+  if (role === 'qiramarrësi') return 'Banesa Ime';
+  return 'Panel Admin';
+}
+
+function getNavItems(role) {
+  if (role === 'qiradhënësi') {
+    return [
+      { id: 'home', label: 'Pronat', icon: icons.house },
+      { id: 'expenses', label: 'Shpenzimet', icon: icons.card },
+      { id: 'payments', label: 'Pagesat', icon: icons.doc },
+      { id: 'notifications', label: 'Njoftimet', icon: icons.bell },
+      { id: 'profile', label: 'Profili', icon: icons.user },
+    ];
+  }
+  if (role === 'qiramarrësi') {
+    return [
+      { id: 'home', label: 'Banesa', icon: icons.house },
+      { id: 'favorites', label: 'Të Preferuarat', icon: icons.heart },
+      { id: 'notifications', label: 'Njoftimet', icon: icons.bell },
+      { id: 'profile', label: 'Profili', icon: icons.user },
+    ];
+  }
+  return [
+    { id: 'home', label: 'Panel', icon: icons.house },
+    { id: 'approvals', label: 'Miratime', icon: icons.check },
+    { id: 'notifications', label: 'Njoftimet', icon: icons.bell },
+    { id: 'profile', label: 'Profili', icon: icons.user },
+  ];
+}
+
+export function renderAppShell(user, page, content, unreadCount = 0) {
+  const role = user.role;
+  const navItems = getNavItems(role);
+  const title = getPageTitle(role, page);
+  const subPages = ['add-property', 'search', 'payments', 'contract', 'favorites', 'expenses', 'approvals', 'notifications'];
+
+  return `
+    <div class="app-shell">
+      ${!subPages.includes(page) ? `
+        <header class="top-header">
+          <div class="header-left">
+            <h1>${title}</h1>
+            <span class="user-role-badge">${getRoleLabel(role)}</span>
+          </div>
+          <nav class="top-nav">
+            ${navItems.map((item) => `
+              <button class="${page === item.id ? 'active' : ''}" data-page="${item.id}">
+                ${item.icon} ${item.label}
+                ${item.id === 'notifications' && unreadCount > 0 ? `<span class="nav-badge">${unreadCount}</span>` : ''}
+              </button>
+            `).join('')}
+            <button class="logout-link" id="logout-btn">${icons.login} Dil</button>
+          </nav>
+        </header>
+      ` : `
+        <header class="top-header sub-page-header">
+          <span class="user-role-badge">${user.fullName} · ${getRoleLabel(role)}</span>
+          <button class="logout-link" id="logout-btn">Dil nga Llogaria</button>
+        </header>
+      `}
+      <main class="page-content">${content}</main>
+    </div>`;
+}
+
+export function attachShellEvents(container, onNavigate, onLogout) {
+  container.querySelectorAll('[data-page]').forEach((btn) => {
+    btn.addEventListener('click', () => onNavigate(btn.dataset.page));
+  });
+  container.querySelector('#logout-btn')?.addEventListener('click', onLogout);
+}
+
+export function renderBackButton(label = 'Kthehu', page = 'home') {
+  return `<button class="page-back" data-page="${page}">${icons.arrowLeft} ${label}</button>`;
+}
