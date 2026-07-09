@@ -302,6 +302,12 @@ export async function saveDataAsync(data) {
   if (isSupabaseEnabled()) await syncAllToSupabase(data);
 }
 
+/** Përditëson cache lokale pa sinkronizim të plotë (pas ruajtjes së synuar në server). */
+export function commitLocalCache(data) {
+  memoryCache = migrateData(data);
+  refreshAdminStats(memoryCache);
+}
+
 function refreshAdminStats(data) {
   data.adminStats = {
     totalProperties: data.properties.length,

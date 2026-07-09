@@ -60,7 +60,7 @@ import {
   loadData,
 } from './services.js';
 import { downloadContractPdf, downloadPaymentsPdf } from './pdf.js';
-import { hydrateContractSignatures } from './supabase/sync.js';
+import { hydrateContractSignatures, getPaymentProofSignedUrl } from './supabase/sync.js';
 import { formatDate, saveData, saveDataAsync } from './data.js';
 import {
   initUIGuard,
@@ -202,6 +202,9 @@ async function navigate(page) {
         console.error('refreshContractsAsync before home:', err);
       }
     }
+  }
+  if (page === 'payments' && isAuthenticatedSync()) {
+    ensureMonthlyRentPayments();
   }
   await render();
 }
@@ -598,9 +601,7 @@ function attachPageEvents(page, user) {
             const result = await submitPaymentProof(btn.dataset.id, proof);
             if (!result.success) { onError(result.error); return; }
             close();
-            alert(result.approved
-              ? t('alert.proofApproved')
-              : t('alert.proofSent'));
+            alert(t('alert.proofSent'));
             await render();
           });
         });

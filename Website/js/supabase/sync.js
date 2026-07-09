@@ -330,7 +330,7 @@ export async function uploadPaymentProof(tenantId, paymentId, proof) {
 
   const { error } = await supabase.storage.from('payment-proofs').upload(path, blob, {
     upsert: true,
-    contentType: proof.type || blob.type,
+    contentType: proof.type || blob.type || 'application/octet-stream',
   });
   if (error) throw error;
 
@@ -341,6 +341,32 @@ export async function uploadPaymentProof(tenantId, paymentId, proof) {
     size: proof.size,
     uploadedAt: new Date().toISOString(),
   };
+}
+
+/** URL e përkohshme për shikimin e dëshmisë nga storage privat. */
+export async function getPaymentProofSignedUrl(proof) {
+  if (!proof) return null;
+  if (proof.dataUrl) return proof.dataUrl;
+  if (!proof.storagePath) return null;
+
+  const supabase = getSupabase();
+  const { data, error } = await supabase.storage
+    .from('payment-proofs')
+    .createSignedUrl(proof.storagePath, 3600);
+  if (error) throw error;
+  return data?.signedUrl || null;
+}
+
+/** Ruaj / përditëso një pagesë në Supabase (p.sh. pas dëshmisë). */
+export async function upsertPaymentSupabase(payment) {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error('Supabase nuk është konfiguruar.');
+  if (!isUuid(payment?.id)) throw new Error('Pagesa nuk është e sinkronizuar me serverin.');
+
+  const row = paymentToRow(payment);
+  const { error } = await supabase.from('payments').upsert(row, { onConflict: 'id' });
+  if (error) throw error;
+  return payment;
 }
 
 export async function uploadSignature(userId, contractId, signature, role = 'tenant') {

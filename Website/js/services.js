@@ -1,18 +1,4 @@
-import {
-  loadData,
-  saveData,
-  saveDataAsync,
-  generateId,
-  PAGE_SIZE,
-  PHOTO_MAX_BYTES,
-  OVERDUE_DAYS,
-  CAMPUSES,
-  KOSOVO_CITIES,
-  EXPENSE_TYPES,
-  hasValidPhotos,
-  getExpenseTypeLabel,
-  formatContractNumber,
-} from './data.js';
+import { loadData, saveData, saveDataAsync, commitLocalCache, generateId, PAGE_SIZE, PHOTO_MAX_BYTES, OVERDUE_DAYS, CAMPUSES, KOSOVO_CITIES, EXPENSE_TYPES, hasValidPhotos, getExpenseTypeLabel, formatContractNumber } from './data.js';
 import { getCurrentUserSync } from './auth.js';
 import { addNotification, addNotificationAsync, addAuditLog } from './services-core.js';
 import { isSupabaseEnabled } from './config.js';
@@ -22,6 +8,7 @@ import {
   uploadSignature,
   updatePropertySupabase,
   persistNewContract,
+  upsertPaymentSupabase,
 } from './supabase/sync.js';
 
 const RESERVING_STATUSES = ['pending_signature', 'generated_pdf', 'signed'];
@@ -771,6 +758,37 @@ function monthKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function isRentMonthBillable(contract, month) {
+  if (!contract || !month) return false;
+  const startMonth = contract.startDate?.slice(0, 7);
+  const endMonth = contract.endDate?.slice(0, 7);
+  const currentMonth = monthKey(new Date());
+  if (!startMonth || month < startMonth) return false;
+  if (endMonth && month > endMonth) return false;
+  if (month > currentMonth) return false;
+  return true;
+}
+
+/** Heq pagesat e qerasë për muaj të ardhshëm (të krijuara gabimisht më parë). */
+function cleanupFutureRentPayments(data) {
+  const currentMonth = monthKey(new Date());
+  const before = data.payments.length;
+  data.payments = data.payments.filter((p) => {
+    if (p.type !== 'qera' || !p.month) return true;
+    if (p.month <= currentMonth) return true;
+    const contract = data.contracts.find((c) => c.id === p.contractId);
+    return contract ? isRentMonthBillable(contract, p.month) : false;
+  });
+  return data.payments.length !== before;
+}
+
+function isPaymentVisible(payment, data) {
+  if (payment.type !== 'qera') return true;
+  const contract = data.contracts.find((c) => c.id === payment.contractId);
+  const month = payment.month || payment.dueDate?.slice(0, 7);
+  return isRentMonthBillable(contract, month);
+}
+
 function addRentPaymentForMonth(contract, property, data, month) {
   const exists = data.payments.some(
     (p) => p.contractId === contract.id && p.month === month && p.type === 'qera'
@@ -792,20 +810,24 @@ function addRentPaymentForMonth(contract, property, data, month) {
     status: 'pending',
     type: 'qera',
     month,
+    createdAt: new Date().toISOString(),
   });
   return true;
 }
 
 function generateContractPayments(contract, property, data = loadData()) {
   const firstMonth = contract.startDate?.slice(0, 7) || monthKey(new Date());
-  addRentPaymentForMonth(contract, property, data, firstMonth);
+  const currentMonth = monthKey(new Date());
+  if (firstMonth <= currentMonth) {
+    addRentPaymentForMonth(contract, property, data, firstMonth);
+  }
 }
 
-/** Shton pagesën mujore të qerasë për çdo muaj deri në muajin aktual (jo të ardhshëm). */
+/** Shton pagesën e qerasë për muajt e kontratës deri në muajin aktual (jo të ardhshëm). */
 export function ensureMonthlyRentPayments(existingData = null) {
   const data = existingData || loadData();
   const currentMonth = monthKey(new Date());
-  let changed = false;
+  let changed = cleanupFutureRentPayments(data);
 
   for (const contract of data.contracts) {
     if (!['active', 'signed'].includes(contract.status)) continue;
@@ -865,14 +887,6 @@ export function markPaymentPaid(paymentId) {
   return { success: true };
 }
 
-function isProofAdequate(proof) {
-  const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'application/pdf'];
-  if (!proof?.dataUrl) return false;
-  if (proof.type && !validTypes.includes(proof.type)) return false;
-  if (!proof.size || proof.size < 200) return false;
-  return true;
-}
-
 export async function submitPaymentProof(paymentId, proof) {
   const data = loadData();
   const user = getCurrentUserSync();
@@ -889,41 +903,73 @@ export async function submitPaymentProof(paymentId, proof) {
     return { success: false, error: 'Dëshmia e pagesës tejkalon 5MB.' };
   }
 
-  let storedProof = { name: proof.name, dataUrl: proof.dataUrl, type: proof.type, uploadedAt: new Date().toISOString(), size: proof.size };
+  const prevStatus = payment.status;
+  const prevProof = payment.proof;
+
+  let storedProof = {
+    name: proof.name,
+    dataUrl: proof.dataUrl,
+    type: proof.type,
+    uploadedAt: new Date().toISOString(),
+    size: proof.size,
+  };
 
   if (isSupabaseEnabled()) {
     try {
+      if (!payment.createdAt) payment.createdAt = new Date().toISOString();
+      await upsertPaymentSupabase(payment);
       storedProof = await uploadPaymentProof(user.id, paymentId, proof);
     } catch (err) {
-      return { success: false, error: err.message || 'Gabim gjatë ngarkimit të dëshmisë.' };
+      console.error('submitPaymentProof:', err);
+      return {
+        success: false,
+        error: err.message || 'Gabim gjatë ngarkimit të dëshmisë. Provoni përsëri.',
+      };
     }
   }
 
   payment.proof = storedProof;
+  payment.status = 'nën_shqyrtim';
 
-  if (isProofAdequate(proof)) {
-    payment.status = 'paguar';
-    payment.paidAt = new Date().toISOString();
-    payment.verifiedBy = 'Sistemi (automatik)';
-    addNotification(
-      payment.landlordId,
-      'pagesë',
-      `Pagesa (${payment.amount}€, ${getExpenseTypeLabel(payment.type)}) u verifikua automatikisht nga sistemi bazuar në dëshminë e ngarkuar.`
-    );
-    addAuditLog('payment_verified', user.id, `Pagesë ${paymentId} u verifikua automatikisht.`);
-    saveData(data);
-    return { success: true, approved: true };
+  try {
+    if (isSupabaseEnabled()) {
+      await upsertPaymentSupabase(payment);
+      await addNotificationAsync(
+        payment.landlordId,
+        'pagesë',
+        `Dëshmi pagese e re kërkon miratimin tuaj (${payment.amount}€, ${getExpenseTypeLabel(payment.type)}).`,
+        data
+      );
+      addAuditLog(
+        'payment_proof_submitted',
+        user.id,
+        `Dëshmi pagese për ${paymentId} — pret miratim nga qeradhënësi.`,
+        data
+      );
+      commitLocalCache(data);
+    } else {
+      addNotification(
+        payment.landlordId,
+        'pagesë',
+        `Dëshmi pagese e re kërkon miratimin tuaj (${payment.amount}€, ${getExpenseTypeLabel(payment.type)}).`
+      );
+      addAuditLog(
+        'payment_proof_submitted',
+        user.id,
+        `Dëshmi pagese për ${paymentId} — pret miratim nga qeradhënësi.`
+      );
+      saveData(data);
+    }
+  } catch (err) {
+    console.error('submitPaymentProof save:', err);
+    payment.proof = prevProof;
+    payment.status = prevStatus;
+    payment.paidAt = null;
+    payment.verifiedBy = null;
+    return { success: false, error: err.message || 'Dëshmia u ngarkua por nuk u ruajt. Provoni përsëri.' };
   }
 
-  payment.status = 'nën_shqyrtim';
-  addNotification(
-    payment.landlordId,
-    'pagesë',
-    `Dëshmi pagese e re kërkon shqyrtimin tuaj (${payment.amount}€, ${getExpenseTypeLabel(payment.type)}).`
-  );
-  addAuditLog('payment_proof_submitted', user.id, `Dëshmi pagese për ${paymentId} — kërkon shqyrtim manual.`);
-  saveData(data);
-  return { success: true, approved: false, pendingReview: true };
+  return { success: true, pendingReview: true };
 }
 
 export function reviewPaymentProof(paymentId, approve) {
@@ -1011,7 +1057,7 @@ export function addMonthlyExpense({ propertyId, type, amount, month, tenantId })
 export function getExpenses(userId, role, fromDate, toDate) {
   syncOverduePayments();
   const data = loadData();
-  let payments = [...data.payments];
+  let payments = [...data.payments].filter((p) => isPaymentVisible(p, data));
 
   if (role === 'qiramarrësi') payments = payments.filter((p) => p.tenantId === userId);
   else if (role === 'qiradhënësi') {

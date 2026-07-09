@@ -616,12 +616,12 @@ export function renderPaymentsPage(period = {}) {
               ${user.role === 'qiramarrësi' && ['pending', 'overdue'].includes(p.status) ? `<button class="btn btn-primary btn-sm pay-btn" data-id="${p.id}">${t('payments.uploadProof')}</button>` : ''}
               ${user.role === 'qiramarrësi' && p.status === 'nën_shqyrtim' ? `<span class="sub-status">${t('payments.underReview')}</span>` : ''}
               ${user.role === 'qiramarrësi' && p.status === 'pending' ? `<button class="btn btn-outline btn-sm dispute-btn" data-id="${p.id}">${t('payments.dispute')}</button>` : ''}
+              ${p.proof ? `<button type="button" class="btn btn-outline btn-sm view-proof-btn" data-id="${p.id}">${t('payments.viewProof')}</button>` : ''}
               ${user.role === 'qiradhënësi' && ['pending', 'overdue'].includes(p.status) ? `<button class="btn btn-outline btn-sm confirm-cash-btn" data-id="${p.id}">${t('payments.confirmCash')}</button>` : ''}
               ${user.role === 'qiradhënësi' && p.status === 'disputed' ? `<button class="btn btn-sm resolve-btn" data-id="${p.id}">${t('payments.resolve')}</button>` : ''}
               ${user.role === 'qiradhënësi' && p.status === 'nën_shqyrtim' ? `
                 <button class="btn btn-primary btn-sm review-approve-btn" data-id="${p.id}">✓ ${t('common.approve')}</button>
-                <button class="btn btn-outline btn-sm review-reject-btn" data-id="${p.id}">✗ ${t('common.reject')}</button>
-                ${p.proof ? `<a href="${p.proof.dataUrl}" target="_blank" class="btn btn-outline btn-sm">${t('payments.viewProof')}</a>` : ''}` : ''}
+                <button class="btn btn-outline btn-sm review-reject-btn" data-id="${p.id}">✗ ${t('common.reject')}</button>` : ''}
             </td>
           </tr>`).join('')}
         </tbody>

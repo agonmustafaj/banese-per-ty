@@ -9,7 +9,7 @@ import { getPendingContractsForTenant, getPendingContractsForLandlord } from '..
 import { icons } from '../icons.js';
 import { parseAppUrl, resolvePageAfterAuth } from '../nav.js';
 import { t, renderLangSwitchHtml, attachLangSwitch } from '../i18n.js';
-import { renderHeaderControlsHtml, attachThemeToggle } from '../theme.js';
+import { renderHeaderControlsHtml, renderThemeToggleHtml, attachThemeToggle } from '../theme.js';
 
 export function renderLogin(onNavigate, onLangChange) {
   let mode = 'login';
@@ -287,7 +287,9 @@ export function renderAppShell(user, page, content, unreadCount = 0) {
             <span class="user-role-badge">${getRoleLabel(role)}</span>
           </div>
           <div class="header-actions">
-            ${renderHeaderControlsHtml(renderLangSwitchHtml())}
+            <div class="header-controls header-controls--bar">
+              ${renderThemeToggleHtml()}${renderLangSwitchHtml()}
+            </div>
             <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="top-nav">
               <span class="nav-toggle-bar"></span>
               <span class="nav-toggle-bar"></span>
@@ -312,13 +314,13 @@ export function renderAppShell(user, page, content, unreadCount = 0) {
   return `
     <div class="app-shell">
       <header class="top-header sub-page-header">
-        <div class="header-left sub-header-left">
+        <div class="sub-header-user">
           <span class="user-role-badge user-role-badge--sub">${user.fullName} · ${getRoleLabel(role)}</span>
         </div>
-        <div class="header-actions sub-header-actions">
-          ${renderHeaderControlsHtml(renderLangSwitchHtml())}
-          <button class="logout-link logout-link--compact" id="logout-btn">${t('common.logout')}</button>
+        <div class="header-controls header-controls--sub">
+          ${renderThemeToggleHtml()}${renderLangSwitchHtml()}
         </div>
+        <button class="logout-link logout-link--compact" id="logout-btn">${t('common.logout')}</button>
       </header>
       <main class="page-content">${content}</main>
     </div>`;
@@ -329,7 +331,7 @@ export function attachShellEvents(container, onNavigate, onLogout, onLangChange)
   const topNav = container.querySelector('#top-nav');
 
   attachLangSwitch(container, () => onLangChange?.());
-  attachThemeToggle(container.querySelector('.header-controls'));
+  container.querySelectorAll('.header-controls').forEach((el) => attachThemeToggle(el));
 
   function setNavOpen(isOpen) {
     if (!navToggle || !topNav) return;

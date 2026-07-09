@@ -181,6 +181,31 @@ export function paymentFromRow(row) {
   };
 }
 
+function compactProofForDb(proof) {
+  if (!proof) return null;
+  if (proof.storagePath) {
+    return {
+      name: proof.name || null,
+      storagePath: proof.storagePath,
+      type: proof.type || null,
+      size: proof.size || null,
+      uploadedAt: proof.uploadedAt || null,
+    };
+  }
+  if (proof.dataUrl && proof.dataUrl.length < 120000) {
+    return proof;
+  }
+  if (proof.name || proof.type) {
+    return {
+      name: proof.name || null,
+      type: proof.type || null,
+      size: proof.size || null,
+      uploadedAt: proof.uploadedAt || null,
+    };
+  }
+  return null;
+}
+
 export function paymentToRow(p) {
   return {
     id: p.id,
@@ -196,8 +221,8 @@ export function paymentToRow(p) {
     paid_at: p.paidAt || null,
     verified_by: p.verifiedBy || null,
     dispute_reason: p.disputeReason || null,
-    proof: p.proof || null,
-    created_at: p.createdAt,
+    proof: compactProofForDb(p.proof),
+    created_at: p.createdAt || new Date().toISOString(),
   };
 }
 
