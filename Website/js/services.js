@@ -20,6 +20,23 @@ import { uploadPropertyPhotos, uploadPaymentProof, uploadSignature, updateProper
 
 const RESERVING_STATUSES = ['pending_signature', 'generated_pdf', 'signed'];
 
+const LANDLORD_VISIBLE_STATUSES = new Set(['publikuar', 'në pritje', 'rezervuar', 'me qera']);
+
+function dedupePropertiesById(list) {
+  const seen = new Set();
+  return list.filter((p) => {
+    if (!p?.id || seen.has(p.id)) return false;
+    seen.add(p.id);
+    return true;
+  });
+}
+
+export function addMonthsToDateString(dateStr, months) {
+  const d = new Date(dateStr);
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
 function ensureContractRequests(data) {
   if (!Array.isArray(data.contractRequests)) data.contractRequests = [];
   return data.contractRequests;
@@ -59,11 +76,17 @@ export function getNotifications(userId) {
   return data.notifications.filter((n) => n.userId === userId).slice(0, 50);
 }
 
-export function markNotificationRead(id) {
+export async function markNotificationRead(id) {
   const data = loadData();
   const n = data.notifications.find((x) => x.id === id);
-  if (n) n.read = true;
-  saveData(data);
+  if (!n || n.read) return false;
+  n.read = true;
+  if (isSupabaseEnabled()) {
+    await saveDataAsync(data);
+  } else {
+    saveData(data);
+  }
+  return true;
 }
 
 export function hasUnpaidDebt(tenantId) {
@@ -91,7 +114,14 @@ export function isPropertyReserved(propertyId) {
 export function getPublishedProperties(filters = {}, page = 1) {
   syncOverduePayments();
   const data = loadData();
-  let list = data.properties.filter((p) => p.status === 'publikuar' && !isPropertyOccupied(p.id));
+  let list = dedupePropertiesById(
+    data.properties.filter(
+      (p) =>
+        p.status === 'publikuar' &&
+        !isPropertyOccupied(p.id) &&
+        !isPropertyReserved(p.id)
+    )
+  );
 
   if (filters.city) {
     list = list.filter((p) => p.city.toLowerCase().includes(filters.city.toLowerCase()));
@@ -122,13 +152,20 @@ export function getOwnerProperties(ownerId) {
   return data.properties.filter((p) => p.ownerId === ownerId);
 }
 
+/** Prona të dukshme te paneli i qeradhënësit (pa refuzuar, pa dublikata). */
+export function getLandlordDisplayProperties(ownerId) {
+  return dedupePropertiesById(
+    getOwnerProperties(ownerId).filter((p) => LANDLORD_VISIBLE_STATUSES.has(p.status))
+  );
+}
+
 export function getPendingProperties() {
   const data = loadData();
   return data.properties.filter((p) => p.status === 'në pritje');
 }
 
 export function getLandlordStats(ownerId) {
-  const props = getOwnerProperties(ownerId);
+  const props = getLandlordDisplayProperties(ownerId);
   const occupied = props.filter((p) => isPropertyOccupied(p.id)).length;
   const available = props.filter(
     (p) => p.status === 'publikuar' && !isPropertyOccupied(p.id) && !isPropertyReserved(p.id)
@@ -158,7 +195,8 @@ export function getTenantProperties(tenantId) {
       contract,
       property: data.properties.find((p) => p.id === contract.propertyId),
       landlord: data.users.find((u) => u.id === contract.landlordId),
-    }));
+    }))
+    .filter((entry) => entry.property);
 }
 
 export function getPendingContractsForTenant(tenantId) {
@@ -294,25 +332,29 @@ export async function approveProperty(id, approved, reason = '') {
   if (!approved) prop.rejectReason = reason;
   else delete prop.rejectReason;
 
+  addNotification(
+    prop.ownerId,
+    approved ? 'sukses' : 'refuzim',
+    approved
+      ? `Prona "${prop.title}" u miratua nga administratori dhe u publikua në platformë.`
+      : `Prona "${prop.title}" u refuzua nga administratori.${reason ? ` Arsyeja: ${reason}` : ''} Nuk shfaqet në platformë.`,
+    data
+  );
+  data.auditLog.unshift({
+    id: generateId('log'),
+    action: approved ? 'property_approved' : 'property_rejected',
+    userId: user?.id,
+    details: `${prop.title} — ${approved ? 'miratuar' : 'refuzuar'}`,
+    timestamp: new Date().toISOString(),
+  });
+  if (data.auditLog.length > 200) data.auditLog.length = 200;
+
   try {
     await updatePropertySupabase(prop);
     await saveDataAsync(data);
   } catch (err) {
     return { success: false, error: err.message || 'Gabim gjatë ruajtjes në server.' };
   }
-
-  addNotification(
-    prop.ownerId,
-    approved ? 'sukses' : 'refuzim',
-    approved
-      ? `Prona "${prop.title}" u miratua dhe u publikua.`
-      : `Prona "${prop.title}" u refuzua.${reason ? ` Arsyeja: ${reason}` : ''}`
-  );
-  addAuditLog(
-    approved ? 'property_approved' : 'property_rejected',
-    user?.id,
-    `${prop.title} — ${approved ? 'miratuar' : 'refuzuar'}`
-  );
   return { success: true };
 }
 
@@ -326,6 +368,9 @@ export function toggleFavorite(propertyId) {
   }
   if (isPropertyOccupied(propertyId)) {
     return { success: false, error: 'Banesa nuk është e lirë — nuk mund të ruhet te të preferuarat.' };
+  }
+  if (isPropertyReserved(propertyId)) {
+    return { success: false, error: 'Banesa është e rezervuar.' };
   }
 
   const idx = data.favorites.findIndex((f) => f.userId === user.id && f.propertyId === propertyId);
@@ -341,10 +386,18 @@ export function toggleFavorite(propertyId) {
 
 export function getFavorites(userId) {
   const data = loadData();
-  return data.favorites
-    .filter((f) => f.userId === userId)
-    .map((f) => data.properties.find((p) => p.id === f.propertyId))
-    .filter(Boolean);
+  return dedupePropertiesById(
+    data.favorites
+      .filter((f) => f.userId === userId)
+      .map((f) => data.properties.find((p) => p.id === f.propertyId))
+      .filter(
+        (p) =>
+          p &&
+          p.status === 'publikuar' &&
+          !isPropertyOccupied(p.id) &&
+          !isPropertyReserved(p.id)
+      )
+  );
 }
 
 export function isFavorite(userId, propertyId) {
@@ -355,14 +408,20 @@ export function isFavorite(userId, propertyId) {
 export function getPendingRequestsForProperty(propertyId) {
   const data = loadData();
   return ensureContractRequests(data).filter(
-    (r) => r.propertyId === propertyId && r.status === 'në pritje'
+    (r) =>
+      r.propertyId === propertyId &&
+      r.status === 'në pritje' &&
+      data.properties.some((p) => p.id === propertyId)
   );
 }
 
 export function getPendingRequestsForLandlord(landlordId) {
   const data = loadData();
   return ensureContractRequests(data).filter(
-    (r) => r.landlordId === landlordId && r.status === 'në pritje'
+    (r) =>
+      r.landlordId === landlordId &&
+      r.status === 'në pritje' &&
+      data.properties.some((p) => p.id === r.propertyId)
   );
 }
 
@@ -407,10 +466,23 @@ export async function requestContract(propertyId) {
   addNotification(
     property.ownerId,
     'kërkesë',
-    `${user.fullName} kërkoi kontratë për "${property.title}".`,
+    `${user.fullName} kërkoi kontratë për "${property.title}". Shkoni te paneli për ta gjeneruar.`,
     data
   );
-  addAuditLog('contract_request', user.id, `Kërkesë kontrate për ${property.title}`);
+  addNotification(
+    user.id,
+    'kërkesë',
+    `Kërkesa juaj për "${property.title}" u dërgua te qeradhënësi.`,
+    data
+  );
+  data.auditLog.unshift({
+    id: generateId('log'),
+    action: 'contract_request',
+    userId: user.id,
+    details: `Kërkesë kontrate për ${property.title}`,
+    timestamp: new Date().toISOString(),
+  });
+  if (data.auditLog.length > 200) data.auditLog.length = 200;
   try {
     await saveDataAsync(data);
   } catch (err) {
@@ -465,14 +537,19 @@ export async function createContract({ propertyId, tenantId, startDate, endDate,
     return { success: false, error: 'Kërkohet nënshkrimi digjital i qeradhënësit.' };
   }
 
+  const effectiveStartDate =
+    startDate || request.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+  const effectiveEndDate =
+    endDate || addMonthsToDateString(effectiveStartDate, 12);
+
   const contract = {
     id: generateId('c'),
     contractNumber: nextContractNumber(data),
     propertyId,
     landlordId: user.id,
     tenantId,
-    startDate,
-    endDate,
+    startDate: effectiveStartDate,
+    endDate: effectiveEndDate,
     status: 'pending_signature',
     requestId: request.id,
     pdfUrl: null,
@@ -507,7 +584,13 @@ export async function createContract({ propertyId, tenantId, startDate, endDate,
   addNotification(
     tenantId,
     'kontratë',
-    `Keni kontratë të re për nënshkrim: "${property.title}". Shkoni te Kontrata.`,
+    `Qeradhënësi dërgoi kontratë për "${property.title}". Nënshkruani te faqja Kontratat.`,
+    data
+  );
+  addNotification(
+    user.id,
+    'kontratë',
+    `Kontrata për "${property.title}" u dërgua te ${tenant.fullName} për nënshkrim.`,
     data
   );
   data.auditLog.unshift({
@@ -543,9 +626,28 @@ export async function signContract(contractId, accepted, signature = null) {
   if (!accepted) {
     contract.status = 'cancelled';
     if (property) property.status = 'publikuar';
-    addNotification(contract.landlordId, 'kontratë', 'Qeramarrësi refuzoi nënshkrimin e kontratës.');
-    addAuditLog('contract_refused', user.id, `Refuzim kontrate ${contractId}`);
-    saveData(data);
+    const request = ensureContractRequests(data).find((r) => r.id === contract.requestId);
+    if (request) {
+      request.status = 'në pritje';
+      request.contractId = null;
+      request.resolvedAt = null;
+    }
+    addNotification(
+      contract.landlordId,
+      'kontratë',
+      `Qeramarrësi refuzoi nënshkrimin e kontratës për "${property?.title || 'banesë'}".`,
+      data
+    );
+    addNotification(contract.tenantId, 'kontratë', 'Ju refuzuat kontratën.', data);
+    data.auditLog.unshift({
+      id: generateId('log'),
+      action: 'contract_refused',
+      userId: user.id,
+      details: `Refuzim kontrate ${contractId}`,
+      timestamp: new Date().toISOString(),
+    });
+    if (data.auditLog.length > 200) data.auditLog.length = 200;
+    await saveDataAsync(data);
     return { success: true, refused: true };
   }
 
@@ -583,44 +685,72 @@ export async function signContract(contractId, accepted, signature = null) {
     property.status = contract.status === 'active' ? 'me qera' : 'rezervuar';
   }
 
-  generateContractPayments(contract, property);
-  checkContractRenewal(contract);
+  generateContractPayments(contract, property, data);
+  checkContractRenewal(contract, data);
 
-  addNotification(contract.landlordId, 'kontratë', 'Qeramarrësi nënshkroi kontratën.');
-  addAuditLog('contract_signed', user.id, `Nënshkrim kontrate ${contractId}`);
-  saveData(data);
+  const title = property?.title || 'banesë';
+  addNotification(
+    contract.landlordId,
+    'kontratë',
+    `Qeramarrësi ${user.fullName} nënshkroi kontratën për "${title}".`,
+    data
+  );
+  addNotification(
+    contract.tenantId,
+    'kontratë',
+    `Kontrata për "${title}" u aktivizua. Pagesat e qerasë fillojnë nga data e nënshkrimit.`,
+    data
+  );
+  data.auditLog.unshift({
+    id: generateId('log'),
+    action: 'contract_signed',
+    userId: user.id,
+    details: `Nënshkrim kontrate ${contractId}`,
+    timestamp: new Date().toISOString(),
+  });
+  if (data.auditLog.length > 200) data.auditLog.length = 200;
+
+  try {
+    await saveDataAsync(data);
+  } catch (err) {
+    return { success: false, error: err.message || 'Gabim gjatë ruajtjes së kontratës.' };
+  }
   return { success: true, contract };
 }
 
-function generateContractPayments(contract, property) {
-  const data = loadData();
-  const start = new Date(contract.startDate);
+function generateContractPayments(contract, property, data = loadData()) {
+  const signedAt = contract.signedAt ? new Date(contract.signedAt) : new Date();
   const end = new Date(contract.endDate);
-  let current = new Date(start.getFullYear(), start.getMonth(), 1);
+  let current = new Date(signedAt.getFullYear(), signedAt.getMonth(), 1);
+  const dueDay = signedAt.getDate();
 
   while (current <= end) {
     const month = current.toISOString().slice(0, 7);
-    const dueDate = `${month}-${String(Math.min(start.getDate(), 28)).padStart(2, '0')}`;
+    const dueDate = `${month}-${String(Math.min(dueDay, 28)).padStart(2, '0')}`;
 
-    data.payments.push({
-      id: generateId('pay'),
-      contractId: contract.id,
-      propertyId: contract.propertyId,
-      tenantId: contract.tenantId,
-      landlordId: contract.landlordId,
-      amount: property?.rentPrice || 350,
-      dueDate,
-      status: 'pending',
-      type: 'qera',
-      month,
-    });
+    const exists = data.payments.some(
+      (p) => p.contractId === contract.id && p.month === month && p.type === 'qera'
+    );
+    if (!exists) {
+      data.payments.push({
+        id: generateId('pay'),
+        contractId: contract.id,
+        propertyId: contract.propertyId,
+        tenantId: contract.tenantId,
+        landlordId: contract.landlordId,
+        amount: property?.rentPrice || 350,
+        dueDate,
+        status: 'pending',
+        type: 'qera',
+        month,
+      });
+    }
 
     current.setMonth(current.getMonth() + 1);
   }
-  saveData(data);
 }
 
-function checkContractRenewal(contract) {
+function checkContractRenewal(contract, data = null) {
   const end = new Date(contract.endDate);
   const now = new Date();
   const daysLeft = Math.floor((end - now) / (1000 * 60 * 60 * 24));
@@ -628,12 +758,14 @@ function checkContractRenewal(contract) {
     addNotification(
       contract.landlordId,
       'rinovim',
-      `Kontrata ${contract.id} skadon në ${daysLeft} ditë — sugjerim rinovimi automatik.`
+      `Kontrata ${contract.id} skadon në ${daysLeft} ditë — sugjerim rinovimi automatik.`,
+      data
     );
     addNotification(
       contract.tenantId,
       'rinovim',
-      `Kontrata juaj skadon në ${daysLeft} ditë. Kontaktoni qeradhënësin për rinovim.`
+      `Kontrata juaj skadon në ${daysLeft} ditë. Kontaktoni qeradhënësin për rinovim.`,
+      data
     );
   }
 }
@@ -819,26 +951,6 @@ export function generateExpenseReport(payments) {
   const paid = payments.filter((p) => p.status === 'paguar').reduce((s, p) => s + p.amount, 0);
   const overdue = payments.filter((p) => p.status === 'overdue').reduce((s, p) => s + p.amount, 0);
   return { total, paid, pending: total - paid, overdue, count: payments.length };
-}
-
-export function requestAgencyHelp(filters) {
-  const user = getCurrentUserSync();
-  const data = loadData();
-  const req = {
-    id: generateId('ag'),
-    userId: user.id,
-    filters,
-    status: 'në pritje',
-    createdAt: new Date().toISOString(),
-  };
-  data.agencyRequests.push(req);
-  const admin = data.users.find((u) => u.role === 'administrator');
-  if (admin) {
-    addNotification(admin.id, 'agjenci', `${user.fullName} kërkoi ndihmë nga agjencia partner.`);
-  }
-  addAuditLog('agency_request', user.id, 'Kërkesë agjenci');
-  saveData(data);
-  return { success: true };
 }
 
 export function processPhotos(files) {

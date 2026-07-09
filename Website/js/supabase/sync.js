@@ -16,8 +16,6 @@ import {
   notificationToRow,
   auditFromRow,
   auditToRow,
-  agencyFromRow,
-  agencyToRow,
 } from './mappers.js';
 
 function isUuid(id) {
@@ -46,7 +44,6 @@ export async function loadAllFromSupabase() {
     paymentsRes,
     notificationsRes,
     auditRes,
-    agencyRes,
   ] = await Promise.all([
     supabase.from('profiles').select('*'),
     supabase.from('properties').select('*'),
@@ -54,54 +51,90 @@ export async function loadAllFromSupabase() {
     supabase.from('contract_requests').select('*'),
     supabase.from('contracts').select('*'),
     supabase.from('payments').select('*'),
-    supabase.from('notifications').select('*').order('sent_at', { ascending: false }).limit(200),
-    supabase.from('audit_log').select('*').order('created_at', { ascending: false }).limit(200),
-    supabase.from('agency_requests').select('*'),
+    supabase.from('notifications').select('*').order('sent_at', { ascending: false }).limit(50),
+    supabase.from('audit_log').select('*').order('created_at', { ascending: false }).limit(30),
   ]);
 
-  const errors = [
-    profilesRes.error,
-    propertiesRes.error,
-    favoritesRes.error,
-    requestsRes.error,
-    contractsRes.error,
-    paymentsRes.error,
-    notificationsRes.error,
-    auditRes.error,
-    agencyRes.error,
-  ].filter(Boolean);
+  return mapSupabasePayload({
+    profilesRes,
+    propertiesRes,
+    favoritesRes,
+    requestsRes,
+    contractsRes,
+    paymentsRes,
+    notificationsRes,
+    auditRes,
+  });
+}
+
+/** Ngarkim i shpejtë — vetëm tabelat që ndryshojnë shpesh (pa profiles). */
+export async function loadVolatileFromSupabase() {
+  const supabase = getSupabase();
+  if (!supabase) throw new Error('Supabase nuk është konfiguruar.');
+
+  const [
+    propertiesRes,
+    favoritesRes,
+    requestsRes,
+    contractsRes,
+    paymentsRes,
+    notificationsRes,
+    auditRes,
+  ] = await Promise.all([
+    supabase.from('properties').select('*'),
+    supabase.from('favorites').select('*'),
+    supabase.from('contract_requests').select('*'),
+    supabase.from('contracts').select('*'),
+    supabase.from('payments').select('*'),
+    supabase.from('notifications').select('*').order('sent_at', { ascending: false }).limit(40),
+    supabase.from('audit_log').select('*').order('created_at', { ascending: false }).limit(20),
+  ]);
+
+  return mapSupabasePayload({
+    propertiesRes,
+    favoritesRes,
+    requestsRes,
+    contractsRes,
+    paymentsRes,
+    notificationsRes,
+    auditRes,
+  });
+}
+
+function mapSupabasePayload(responses) {
+  const errors = Object.values(responses)
+    .map((r) => r?.error)
+    .filter(Boolean);
 
   if (errors.length) {
     throw new Error(errors.map((e) => e.message).join('; '));
   }
 
-  const users = (profilesRes.data || []).map(profileToUser);
-  const properties = (propertiesRes.data || []).map(propertyFromRow);
-  const favorites = (favoritesRes.data || []).map(favoriteFromRow);
-  const contractRequests = (requestsRes.data || []).map(contractRequestFromRow);
-  const contracts = (contractsRes.data || []).map(contractFromRow);
-  const payments = (paymentsRes.data || []).map(paymentFromRow);
-  const notifications = (notificationsRes.data || []).map(notificationFromRow);
-  const auditLog = (auditRes.data || []).map(auditFromRow);
-  const agencyRequests = (agencyRes.data || []).map(agencyFromRow);
+  const profilesRes = responses.profilesRes;
+  const properties = (responses.propertiesRes.data || []).map(propertyFromRow);
+  const users = profilesRes ? (profilesRes.data || []).map(profileToUser) : undefined;
 
-  return {
-    users,
+  const payload = {
     properties,
-    favorites,
-    contractRequests,
-    contracts,
-    payments,
-    notifications,
-    agencyRequests,
-    auditLog,
-    adminStats: {
+    favorites: (responses.favoritesRes.data || []).map(favoriteFromRow),
+    contractRequests: (responses.requestsRes.data || []).map(contractRequestFromRow),
+    contracts: (responses.contractsRes.data || []).map(contractFromRow),
+    payments: (responses.paymentsRes.data || []).map(paymentFromRow),
+    notifications: (responses.notificationsRes.data || []).map(notificationFromRow),
+    auditLog: (responses.auditRes.data || []).map(auditFromRow),
+  };
+
+  if (users) {
+    payload.users = users;
+    payload.adminStats = {
       totalProperties: properties.length,
       activeUsers: users.filter((u) => u.role !== 'administrator').length,
       pendingApproval: properties.filter((p) => p.status === 'në pritje').length,
-    },
-    activityFeed: [],
-  };
+    };
+    payload.activityFeed = [];
+  }
+
+  return payload;
 }
 
 async function upsertTable(table, rows, toRow) {
@@ -183,7 +216,6 @@ export async function syncAllToSupabase(data) {
   await upsertTable('payments', data.payments, paymentToRow);
   await upsertTable('notifications', data.notifications?.filter((n) => isUuid(n.id)), notificationToRow);
   await upsertTable('audit_log', data.auditLog?.filter((l) => isUuid(l.id)), auditToRow);
-  await upsertTable('agency_requests', data.agencyRequests, agencyToRow);
 }
 
 export async function insertNotificationSupabase(notification) {

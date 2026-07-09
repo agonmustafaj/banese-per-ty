@@ -1,6 +1,6 @@
 import { isSupabaseEnabled } from './config.js';
 import { t, locale } from './i18n.js';
-import { loadAllFromSupabase, syncAllToSupabase } from './supabase/sync.js';
+import { loadAllFromSupabase, loadVolatileFromSupabase, syncAllToSupabase } from './supabase/sync.js';
 
 export const PAGE_SIZE = 20;
 export const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
@@ -155,6 +155,10 @@ function migrateData(data) {
     if (!p.month && p.dueDate) p.month = p.dueDate.slice(0, 7);
   });
 
+  data.notifications.forEach((n) => {
+    n.read = !!n.read;
+  });
+
   data.properties.forEach((p) => {
     if (p.status === 'me qira') p.status = 'me qera';
     if (!p.photos) p.photos = [];
@@ -167,6 +171,13 @@ function migrateData(data) {
     if (u.twoFactorEnabled === undefined) u.twoFactorEnabled = false;
   });
 
+  const propertyIds = new Set(data.properties.map((p) => p.id));
+  data.favorites = data.favorites.filter((f) => propertyIds.has(f.propertyId));
+  data.contractRequests = data.contractRequests.filter((r) => propertyIds.has(r.propertyId));
+  data.contracts = data.contracts.filter((c) => !c.propertyId || propertyIds.has(c.propertyId));
+  data.payments = data.payments.filter((p) => !p.propertyId || propertyIds.has(p.propertyId));
+  data.agencyRequests = [];
+
   return data;
 }
 
@@ -178,7 +189,8 @@ export function loadData() {
   return migrateData(cloneData(defaultData));
 }
 
-const LOAD_TIMEOUT_MS = 20000;
+const LOAD_TIMEOUT_MS = 28000;
+const VOLATILE_TIMEOUT_MS = 12000;
 
 function withTimeout(promise, ms) {
   return Promise.race([
@@ -189,7 +201,7 @@ function withTimeout(promise, ms) {
   ]);
 }
 
-export async function loadDataAsync(retries = 2) {
+export async function loadDataAsync(retries = 1) {
   if (!isSupabaseEnabled()) {
     throw new Error('Aplikacioni kërkon lidhje me serverin.');
   }
@@ -200,10 +212,23 @@ export async function loadDataAsync(retries = 2) {
       return memoryCache;
     } catch (err) {
       if (i === retries) throw err;
-      await new Promise((r) => setTimeout(r, 300));
+      await new Promise((r) => setTimeout(r, 250));
     }
   }
   return loadData();
+}
+
+/** Rifreskim i shpejtë në sfond — përditëson prona, kontrata, njoftime, etj. */
+export async function refreshDataAsync() {
+  if (!isSupabaseEnabled()) {
+    throw new Error('Aplikacioni kërkon lidhje me serverin.');
+  }
+  if (!memoryCache) return loadDataAsync(1);
+
+  const volatile = await withTimeout(loadVolatileFromSupabase(), VOLATILE_TIMEOUT_MS);
+  memoryCache = migrateData({ ...memoryCache, ...volatile });
+  refreshAdminStats(memoryCache);
+  return memoryCache;
 }
 
 function reportSyncError(err) {

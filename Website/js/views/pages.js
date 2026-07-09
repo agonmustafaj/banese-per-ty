@@ -1,6 +1,7 @@
 import { getCurrentUserSync } from '../auth.js';
 import {
   getOwnerProperties,
+  getLandlordDisplayProperties,
   getPublishedProperties,
   getLandlordStats,
   getTenantCurrentProperty,
@@ -31,6 +32,7 @@ import {
   KOSOVO_CITIES,
   EXPENSE_TYPES,
   PAGE_SIZE,
+  addMonthsToDateString,
 } from '../services.js';
 import { getPhotoSrc, hasValidPhotos, getRoleLabel, formatContractNumber } from '../data.js';
 import { icons } from '../icons.js';
@@ -38,6 +40,7 @@ import { renderBackButton } from './layout.js';
 import { t, formatLocaleString, formatLocaleDate } from '../i18n.js';
 
 function propertySpecs(p) {
+  if (!p) return '—';
   return t('property.specs', { rooms: p.rooms, bathrooms: p.bathrooms || 1, area: p.area || '-' });
 }
 
@@ -80,10 +83,10 @@ function propertyRow(p) {
       <div class="property-row-main">
         <div class="property-thumb">${thumb}</div>
         <div class="property-info">
-          <h3>${p.title}</h3>
-          <div class="address">${icons.pin} ${p.address}</div>
+          <h3>${p?.title || t('common.unknown')}</h3>
+          <div class="address">${icons.pin} ${p?.address || '—'}</div>
           <div class="specs">${icons.bed} ${propertySpecs(p)}</div>
-          <div class="price">${formatCurrency(p.rentPrice)}${t('common.perMonth')}</div>
+          <div class="price">${formatCurrency(p?.rentPrice || 0)}${t('common.perMonth')}</div>
           ${p.city ? `<div class="sub-status">${p.city}</div>` : ''}
         </div>
         <div class="property-status">
@@ -103,7 +106,7 @@ function propertyRow(p) {
 export function renderLandlordHome() {
   const user = getCurrentUserSync();
   const stats = getLandlordStats(user.id);
-  const properties = getOwnerProperties(user.id);
+  const properties = getLandlordDisplayProperties(user.id);
   const pendingRequests = getPendingRequestsForLandlord(user.id);
   const data = loadData();
 
@@ -157,9 +160,9 @@ export function renderTenantHome() {
         ${activeProperties.map(({ property: p, contract, landlord }) => `
           <div class="tenant-apartment-card">
             <div class="card-label">${t('tenant.myApartment')}</div>
-            <h3>${p.title}</h3>
-            <div class="address">${icons.pin} ${p.address}</div>
-            <div class="price">${formatCurrency(p.rentPrice)}${t('common.perMonth')}</div>
+            <h3>${p?.title || t('common.unknown')}</h3>
+            <div class="address">${icons.pin} ${p?.address || '—'}</div>
+            <div class="price">${formatCurrency(p?.rentPrice || 0)}${t('common.perMonth')}</div>
             <div class="tenant-contact">${t('tenant.landlordContact', { name: landlord?.fullName, phone: landlord?.phone || '' })}</div>
             <div class="rent-card" style="margin-top:0.5rem"><div class="label">${t('tenant.contractExpires')}</div><div class="value">${monthsUntil(contract.endDate)} ${t('common.months')}</div></div>
           </div>
@@ -357,9 +360,10 @@ export function renderNotificationsPage() {
   const notes = getNotifications(user.id);
 
   const actionPageFor = (notification) => {
-    if (notification.type === 'kërkesë') return 'home';
+    if (['sukses', 'refuzim', 'kërkesë'].includes(notification.type)) return 'home';
     if (notification.type === 'kontratë') return 'contract';
-    if (notification.type === 'pagesë') return 'payments';
+    if (notification.type === 'pagesë' || notification.type === 'shpenzim') return 'payments';
+    if (notification.type === 'miratim') return 'approvals';
     return '';
   };
 
@@ -535,7 +539,6 @@ export function renderSearchPage(searchState = {}) {
       </div>
       <div class="search-filter-actions">
         <button class="btn btn-primary" id="search-btn">${t('common.search')}</button>
-        <button class="btn btn-outline" id="agency-btn">${t('search.agencyHelp')}</button>
       </div>
     </div>
     <div id="search-meta" style="margin:1rem 0;color:var(--text-muted)">${result.total} ${t('common.results')} · ${t('common.page')} ${result.page}/${result.totalPages}</div>
@@ -716,8 +719,8 @@ export function renderContractPage() {
       <div class="contract-preview" style="margin-bottom:1.5rem">
         <strong>${t('contract.activeTitle')}</strong><br/><br/>
         ${t('contract.between', { landlord: landlord?.fullName, tenant: user.fullName })}<br/><br/>
-        ${property.title} — ${property.address}<br/>
-        ${t('contract.rent', { amount: formatCurrency(property.rentPrice) })}<br/>
+        ${property?.title || t('common.unknown')} — ${property?.address || '—'}<br/>
+        ${t('contract.rent', { amount: formatCurrency(property?.rentPrice || 0) })}<br/>
         ${t('contract.period', { start: formatDate(contract.startDate), end: formatDate(contract.endDate) })}<br/>
         ${t('contract.status', { status: getContractStatusLabel(contract.status) })}<br/>
         ${contract.signature ? `<div class="sub-status">${t('contract.signedOn', { date: formatLocaleDate(contract.signedAt) })}</div>` : ''}
@@ -819,6 +822,21 @@ export function showContractModal(container, property, onCreate) {
   modal.querySelector('.modal-close').onclick = () => modal.remove();
   modal.querySelector('.modal-cancel').onclick = () => modal.remove();
   modal.onclick = (e) => { if (e.target === modal) modal.remove(); };
+
+  const startInput = modal.querySelector('[name="startDate"]');
+  const endInput = modal.querySelector('[name="endDate"]');
+  const requestSelect = modal.querySelector('[name="requestId"]');
+
+  const applyRequestDates = () => {
+    const req = pendingRequests.find((r) => r.id === requestSelect.value);
+    const start = req?.createdAt?.slice(0, 10) || new Date().toISOString().slice(0, 10);
+    startInput.value = start;
+    endInput.value = addMonthsToDateString(start, 12);
+  };
+
+  applyRequestDates();
+  requestSelect.addEventListener('change', applyRequestDates);
+
   modal.querySelector('#contract-form').onsubmit = (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);

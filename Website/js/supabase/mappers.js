@@ -227,26 +227,6 @@ export function auditToRow(log) {
   };
 }
 
-export function agencyFromRow(row) {
-  return {
-    id: row.id,
-    userId: row.user_id,
-    filters: row.filters,
-    status: row.status,
-    createdAt: row.created_at,
-  };
-}
-
-export function agencyToRow(req) {
-  return {
-    id: req.id,
-    user_id: req.userId,
-    filters: req.filters,
-    status: req.status,
-    created_at: req.createdAt,
-  };
-}
-
 export function favoriteFromRow(row) {
   return {
     userId: row.user_id,
