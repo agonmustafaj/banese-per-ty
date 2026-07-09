@@ -335,5 +335,5 @@ export function attachShellEvents(container, onNavigate, onLogout, onLangChange)
 }
 
 export function renderBackButton(label, page = 'home') {
-  return `<button class="page-back" data-page="${page}">${icons.arrowLeft} ${label ?? t('common.back')}</button>`;
+  return `<button type="button" class="page-back" data-page="${page}">${icons.arrowLeft} ${label ?? t('common.back')}</button>`;
 }

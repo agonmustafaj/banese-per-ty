@@ -394,7 +394,7 @@ export function renderProfilePage() {
     ${renderBackButton()}
     <div class="profile-header"><div class="profile-avatar">${avatarLetter}</div><h2>${displayName}</h2></div>
     <div class="profile-section">
-      <form id="profile-form">
+      <form id="profile-form" novalidate>
         <div class="form-grid">
           <div class="form-group"><label>${t('common.name')}</label><input name="fullName" value="${user.fullName || ''}" required /></div>
           <div class="form-group"><label>${t('common.email')}</label><input name="email" type="email" value="${user.email}" required /></div>
@@ -412,7 +412,7 @@ export function renderProfilePage() {
       </form>
     </div>
     <div class="profile-section">
-      <form id="password-form">
+      <form id="password-form" novalidate>
         <div class="form-grid">
           <div class="form-group"><label>${t('profile.currentPassword')}</label><input name="currentPassword" type="password" /></div>
           <div class="form-group"><label>${t('profile.newPassword')}</label><input name="newPassword" type="password" /></div>
@@ -442,7 +442,7 @@ export function renderAddPropertyPage(property = null) {
     ${renderBackButton(undefined, 'home')}
     <h2>${isEdit ? t('page.editProperty') : t('page.addProperty')}</h2>
     <p class="field-hint" style="margin-bottom:1rem">${t('property.approvalHint')}</p>
-    <form id="property-form">
+    <form id="property-form" novalidate>
       <div class="form-section">
         <div class="form-grid">
           <div class="form-group full"><label>${t('property.title')}</label><input name="title" required value="${property?.title || ''}" /></div>
@@ -623,7 +623,7 @@ export function showPaymentProofModal(container, payment, onSubmit) {
   modal.className = 'modal-overlay';
   modal.innerHTML = `
     <div class="modal">
-      <div class="modal-header"><h3>${t('modal.proofTitle')}</h3><button class="modal-close">&times;</button></div>
+      <div class="modal-header"><h3>${t('modal.proofTitle')}</h3><button type="button" class="modal-close">&times;</button></div>
       <div class="modal-body">
         <p class="field-hint">${t('modal.proofHint')}</p>
         <div class="form-group"><label>${t('common.amount')}: ${formatCurrency(payment.amount)} — ${getExpenseTypeLabel(payment.type)}</label></div>
@@ -668,7 +668,7 @@ export function renderLandlordExpensesPage() {
     ${renderBackButton()}
     <h2>${t('page.expenses')}</h2>
     <p class="field-hint">${t('expense.hint')}</p>
-    <form id="expense-form" class="profile-section">
+    <form id="expense-form" class="profile-section" novalidate>
       <div class="form-grid">
         <div class="form-group"><label>${t('expense.property')}</label>
           <select name="propertyId" required>${props.map((p) => `<option value="${p.id}">${p.title}</option>`).join('')}</select>
@@ -741,7 +741,7 @@ export function showSignatureModal(container, contract, onSign, options = {}) {
   modal.className = 'modal-overlay';
   modal.innerHTML = `
     <div class="modal">
-      <div class="modal-header"><h3>${title}</h3><button class="modal-close">&times;</button></div>
+      <div class="modal-header"><h3>${title}</h3><button type="button" class="modal-close">&times;</button></div>
       <div class="modal-body">
         <p class="field-hint">${hint}</p>
         <canvas id="signature-canvas" width="400" height="150" style="border:2px dashed var(--border);border-radius:8px;width:100%;max-width:400px;touch-action:none;cursor:crosshair;background:#fff"></canvas>
@@ -798,8 +798,8 @@ export function showContractModal(container, property, onCreate) {
   modal.className = 'modal-overlay';
   modal.innerHTML = `
     <div class="modal">
-      <div class="modal-header"><h3>${t('modal.generateContract', { title: property.title })}</h3><button class="modal-close">&times;</button></div>
-      <form id="contract-form">
+      <div class="modal-header"><h3>${t('modal.generateContract', { title: property.title })}</h3><button type="button" class="modal-close">&times;</button></div>
+      <form id="contract-form" novalidate>
         <div class="modal-body">
           <div class="form-group"><label>${t('modal.tenantSelect')}</label>
             <select name="requestId" required>

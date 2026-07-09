@@ -59,6 +59,13 @@ import {
 } from './services.js';
 import { downloadContractPdf, downloadPaymentsPdf } from './pdf.js';
 import { formatDate, saveData, saveDataAsync } from './data.js';
+import {
+  initUIGuard,
+  resetUIBaseline,
+  shouldBlockAutoRender,
+  patchNotificationBadge,
+  runWithSubmitGuard,
+} from './ui-guard.js';
 
 const app = document.getElementById('app');
 let currentPage = 'home';
@@ -119,6 +126,11 @@ async function refreshInBackground() {
     try {
       await refreshDataAsync();
       dataLoadError = null;
+      if (shouldBlockAutoRender()) {
+        const user = getCurrentUserSync();
+        if (user) patchNotificationBadge(app, getUnreadCount(user.id));
+        return;
+      }
       await render();
     } catch (err) {
       console.error('refreshDataAsync:', err);
@@ -200,7 +212,9 @@ async function renderPage() {
       await reloadAppData();
       startAutoSync();
       await navigate(p);
-    }, () => render());
+    }, () => {
+      if (!shouldBlockAutoRender()) render();
+    });
     app.innerHTML = html;
     attachEvents(app);
     if (oauthBootstrapError) {
@@ -208,6 +222,7 @@ async function renderPage() {
       if (alertEl) alertEl.innerHTML = `<div class="alert alert-error">${oauthBootstrapError}</div>`;
       oauthBootstrapError = null;
     }
+    resetUIBaseline();
     return;
   }
 
@@ -218,7 +233,9 @@ async function renderPage() {
       await reloadAppData();
       startAutoSync();
       await navigate(p);
-    }, () => render());
+    }, () => {
+      if (!shouldBlockAutoRender()) render();
+    });
     app.innerHTML = html;
     attachEvents(app);
     if (oauthBootstrapError) {
@@ -226,6 +243,7 @@ async function renderPage() {
       if (alertEl) alertEl.innerHTML = `<div class="alert alert-error">${oauthBootstrapError}</div>`;
       oauthBootstrapError = null;
     }
+    resetUIBaseline();
     return;
   }
 
@@ -284,8 +302,11 @@ async function renderPage() {
     currentPage = 'login';
     history.replaceState({}, '', window.location.pathname);
     await render();
-  }, () => render());
+  }, () => {
+    if (!shouldBlockAutoRender()) render();
+  });
   attachPageEvents(currentPage, user);
+  resetUIBaseline();
 }
 
 function attachPageEvents(page, user) {
@@ -312,11 +333,13 @@ function attachPageEvents(page, user) {
         const property = loadData().properties.find((p) => p.id === btn.dataset.id);
         showContractModal(app, property, async (form) => {
           showSignatureModal(app, null, async (landlordSignature) => {
-            const result = await createContract({ ...form, landlordSignature });
-            if (!result.success) { alert(result.error); return; }
-            await saveContractPdf(result.contract, loadData());
-            alert(t('alert.contractGenerated'));
-            render();
+            await runWithSubmitGuard(async () => {
+              const result = await createContract({ ...form, landlordSignature });
+              if (!result.success) { alert(result.error); return; }
+              await saveContractPdf(result.contract, loadData());
+              alert(t('alert.contractGenerated'));
+              await render();
+            });
           }, {
             title: t('modal.landlordSignatureTitle'),
             hint: t('modal.landlordSignatureHint'),
@@ -386,76 +409,110 @@ function attachPageEvents(page, user) {
   if (page === 'add-property') {
     app.querySelector('#property-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const fd = new FormData(e.target);
-      const data = loadData();
-      const existing = editingPropertyId ? data.properties.find((p) => p.id === editingPropertyId) : null;
-      let photos = existing?.photos || [];
-      const fileInput = e.target.querySelector('input[name="photos"]');
-      if (fileInput?.files?.length) {
+      await runWithSubmitGuard(async () => {
+        const form = e.target;
+        const submitBtn = form.querySelector('[type="submit"]');
+        if (submitBtn?.disabled) return;
+        if (submitBtn) submitBtn.disabled = true;
+
         try {
-          const newPhotos = await processPhotos(fileInput.files);
-          photos = [...(existing?.photos || []), ...newPhotos].slice(0, 5);
-        } catch (err) {
-          alert(err.message);
-          return;
+          const fd = new FormData(form);
+          const data = loadData();
+          const existing = editingPropertyId ? data.properties.find((p) => p.id === editingPropertyId) : null;
+          let photos = existing?.photos || [];
+          const fileInput = form.querySelector('input[name="photos"]');
+          if (fileInput?.files?.length) {
+            try {
+              const newPhotos = await processPhotos(fileInput.files);
+              photos = [...(existing?.photos || []), ...newPhotos].slice(0, 5);
+            } catch (err) {
+              alert(err.message);
+              return;
+            }
+          }
+
+          const result = await saveProperty({
+            id: existing?.id,
+            title: fd.get('title'),
+            address: fd.get('address'),
+            city: fd.get('city'),
+            type: fd.get('type'),
+            rentPrice: Number(fd.get('rentPrice')),
+            deposit: Number(fd.get('deposit')) || Number(fd.get('rentPrice')),
+            rooms: Number(fd.get('rooms')),
+            bathrooms: Number(fd.get('bathrooms')),
+            area: Number(fd.get('area')),
+            description: fd.get('description'),
+            nearCampus: fd.get('nearCampus') || '',
+            photos,
+            amenities: {
+              mobiluar: fd.get('amenity_mobiluar') === 'on',
+              ngrohje: fd.get('amenity_ngrohje') === 'on',
+              ac: fd.get('amenity_ac') === 'on',
+              parking: fd.get('amenity_parking') === 'on',
+              ballkon: fd.get('amenity_ballkon') === 'on',
+              ashensor: fd.get('amenity_ashensor') === 'on',
+            },
+          });
+
+          if (!result.success) {
+            alert(result.error);
+            return;
+          }
+          alert(result.pendingApproval ? t('alert.savedPending') : t('alert.saved'));
+          editingPropertyId = null;
+          await navigate('home');
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
         }
-      }
-
-      const result = await saveProperty({
-        id: existing?.id,
-        title: fd.get('title'),
-        address: fd.get('address'),
-        city: fd.get('city'),
-        type: fd.get('type'),
-        rentPrice: Number(fd.get('rentPrice')),
-        deposit: Number(fd.get('deposit')) || Number(fd.get('rentPrice')),
-        rooms: Number(fd.get('rooms')),
-        bathrooms: Number(fd.get('bathrooms')),
-        area: Number(fd.get('area')),
-        description: fd.get('description'),
-        nearCampus: fd.get('nearCampus') || '',
-        photos,
-        amenities: {
-          mobiluar: fd.get('amenity_mobiluar') === 'on',
-          ngrohje: fd.get('amenity_ngrohje') === 'on',
-          ac: fd.get('amenity_ac') === 'on',
-          parking: fd.get('amenity_parking') === 'on',
-          ballkon: fd.get('amenity_ballkon') === 'on',
-          ashensor: fd.get('amenity_ashensor') === 'on',
-        },
       });
-
-      if (!result.success) { alert(result.error); return; }
-      alert(result.pendingApproval ? t('alert.savedPending') : t('alert.saved'));
-      navigate('home');
     });
   }
 
   if (page === 'profile') {
     app.querySelector('#profile-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const fd = new FormData(e.target);
-      const result = await updateProfile(user.id, {
-        fullName: fd.get('fullName'),
-        email: fd.get('email'),
-        phone: fd.get('phone'),
-        address: fd.get('address'),
-        userType: fd.get('userType'),
-        campusId: fd.get('campusId'),
+      await runWithSubmitGuard(async () => {
+        const form = e.target;
+        const submitBtn = form.querySelector('[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+        try {
+          const fd = new FormData(form);
+          const result = await updateProfile(user.id, {
+            fullName: fd.get('fullName'),
+            email: fd.get('email'),
+            phone: fd.get('phone'),
+            address: fd.get('address'),
+            userType: fd.get('userType'),
+            campusId: fd.get('campusId'),
+          });
+          alert(result.success ? t('alert.saved') : result.error);
+          if (result.success) await render();
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
+        }
       });
-      alert(result.success ? t('alert.saved') : result.error);
-      render();
     });
 
     app.querySelector('#password-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const fd = new FormData(e.target);
-      if (fd.get('newPassword') !== fd.get('confirmPassword')) {
-        alert(t('alert.passwordMismatch'));
-        return;
-      }
-      const result = await changePassword(user.id, fd.get('currentPassword'), fd.get('newPassword'));
-      alert(result.success ? t('alert.passwordChanged') : result.error);
+      await runWithSubmitGuard(async () => {
+        const form = e.target;
+        const submitBtn = form.querySelector('[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+        try {
+          const fd = new FormData(form);
+          if (fd.get('newPassword') !== fd.get('confirmPassword')) {
+            alert(t('alert.passwordMismatch'));
+            return;
+          }
+          const result = await changePassword(user.id, fd.get('currentPassword'), fd.get('newPassword'));
+          alert(result.success ? t('alert.passwordChanged') : result.error);
+          if (result.success) form.reset();
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
+        }
+      });
     });
 
     app.querySelector('#delete-account-btn')?.addEventListener('click', async () => {
@@ -505,13 +562,15 @@ function attachPageEvents(page, user) {
         const payment = loadData().payments.find((p) => p.id === btn.dataset.id);
         if (!payment) return;
         showPaymentProofModal(app, payment, async (proof, onError, close) => {
-          const result = await submitPaymentProof(btn.dataset.id, proof);
-          if (!result.success) { onError(result.error); return; }
-          close();
-          alert(result.approved
-            ? t('alert.proofApproved')
-            : t('alert.proofSent'));
-          render();
+          await runWithSubmitGuard(async () => {
+            const result = await submitPaymentProof(btn.dataset.id, proof);
+            if (!result.success) { onError(result.error); return; }
+            close();
+            alert(result.approved
+              ? t('alert.proofApproved')
+              : t('alert.proofSent'));
+            await render();
+          });
         });
       });
     });
@@ -544,17 +603,29 @@ function attachPageEvents(page, user) {
   }
 
   if (page === 'expenses') {
-    app.querySelector('#expense-form')?.addEventListener('submit', (e) => {
+    app.querySelector('#expense-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const fd = new FormData(e.target);
-      const result = addMonthlyExpense({
-        propertyId: fd.get('propertyId'),
-        type: fd.get('type'),
-        amount: fd.get('amount'),
-        month: fd.get('month'),
+      await runWithSubmitGuard(async () => {
+        const form = e.target;
+        const submitBtn = form.querySelector('[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
+        try {
+          const fd = new FormData(form);
+          const result = addMonthlyExpense({
+            propertyId: fd.get('propertyId'),
+            type: fd.get('type'),
+            amount: fd.get('amount'),
+            month: fd.get('month'),
+          });
+          alert(result.success ? t('alert.expenseAdded') : result.error);
+          if (result.success) {
+            form.reset();
+            resetUIBaseline();
+          }
+        } finally {
+          if (submitBtn) submitBtn.disabled = false;
+        }
       });
-      alert(result.success ? t('alert.expenseAdded') : result.error);
-      if (result.success) e.target.reset();
     });
   }
 
@@ -565,10 +636,12 @@ function attachPageEvents(page, user) {
         const contract = data.contracts.find((c) => c.id === btn.dataset.id);
         if (!contract) return;
         showSignatureModal(app, contract, async (signature) => {
-          const result = await signContract(btn.dataset.id, true, signature);
-          if (!result.success) { alert(result.error); return; }
-          alert(t('alert.contractSigned'));
-          render();
+          await runWithSubmitGuard(async () => {
+            const result = await signContract(btn.dataset.id, true, signature);
+            if (!result.success) { alert(result.error); return; }
+            alert(t('alert.contractSigned'));
+            await render();
+          });
         });
       });
     });
@@ -630,10 +703,13 @@ function bindSearchEvents(user) {
   app.querySelectorAll('.request-contract-btn').forEach((btn) => {
     btn.addEventListener('click', async () => {
       btn.disabled = true;
-      const result = await requestContract(btn.dataset.id);
-      alert(result.success ? t('alert.requestSent') : result.error);
-      render();
-      refreshInBackground();
+      await runWithSubmitGuard(async () => {
+        const result = await requestContract(btn.dataset.id);
+        alert(result.success ? t('alert.requestSent') : result.error);
+        await render();
+        refreshInBackground();
+      });
+      btn.disabled = false;
     });
   });
 
@@ -666,7 +742,10 @@ async function saveContractPdf(contract, data) {
 async function init() {
   showLoading();
   initI18n();
-  onLangChange(() => render());
+  initUIGuard(app);
+  onLangChange(() => {
+    if (!shouldBlockAutoRender()) render();
+  });
 
   try {
     oauthBootstrapError = consumeOAuthUrlError();
