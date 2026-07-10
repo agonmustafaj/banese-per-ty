@@ -177,25 +177,9 @@ const translations = {
   },
 };
 
-const LANG_KEY = 'banesaperty_lang';
-
-function detectDefaultLang() {
-  const urlLang = new URLSearchParams(window.location.search).get('lang');
-  if (urlLang && translations[urlLang]) return urlLang;
-  const saved = localStorage.getItem(LANG_KEY);
-  if (saved && translations[saved]) return saved;
-  const browserLang = (navigator.language || 'sq').slice(0, 2).toLowerCase();
-  return translations[browserLang] ? browserLang : 'sq';
-}
-
-function applyLang(lang) {
-  if (!translations[lang]) lang = 'sq';
-  const dict = translations[lang];
-
-  document.documentElement.setAttribute('lang', lang);
-
-  const ogLocale = document.querySelector('meta[property="og:locale"]');
-  if (ogLocale) ogLocale.setAttribute('content', lang === 'en' ? 'en_US' : 'sq_AL');
+function applyLang() {
+  const dict = translations.sq;
+  document.documentElement.setAttribute('lang', 'sq');
 
   document.querySelectorAll('[data-i18n]').forEach((el) => {
     const key = el.getAttribute('data-i18n');
@@ -215,19 +199,6 @@ function applyLang(lang) {
     if (!attr || dict[key] === undefined) return;
     el.setAttribute(attr, dict[key]);
   });
-
-  document.querySelectorAll('.lang-btn').forEach((btn) => {
-    btn.classList.toggle('active', btn.getAttribute('data-lang') === lang);
-  });
-
-  localStorage.setItem(LANG_KEY, lang);
 }
 
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest('.lang-btn');
-  if (!btn) return;
-  applyLang(btn.getAttribute('data-lang'));
-  if (mainNav?.classList.contains('nav-open')) setNavOpen(false);
-});
-
-applyLang(detectDefaultLang());
+applyLang();

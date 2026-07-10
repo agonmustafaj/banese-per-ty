@@ -9,13 +9,14 @@ import {
   deleteUserAsAdmin,
   initAuth,
   consumeOAuthUrlError,
+  needsRoleSelection,
 } from './auth.js';
 import { enforceSessionExpiry } from './auth-session.js';
 import { loadDataAsync, refreshDataAsync, refreshContractsAsync, formatContractNumber } from './data.js';
 import { startRealtimeSync } from './supabase/realtime-sync.js';
 import { parseAppUrl, resolvePageAfterAuth, syncUrlState, canAccessPage } from './nav.js';
 import { initI18n, onLangChange, t, getDeleteConfirmWord } from './i18n.js';
-import { renderLogin, renderAppShell, attachShellEvents } from './views/layout.js';
+import { renderLogin, renderRoleSelection, renderAppShell, attachShellEvents } from './views/layout.js';
 import {
   renderLandlordHome,
   renderTenantHome,
@@ -240,8 +241,6 @@ async function renderPage() {
       await reloadAppData();
       startAutoSync();
       await navigate(p);
-    }, () => {
-      if (!shouldBlockAutoRender()) render();
     });
     app.innerHTML = html;
     attachEvents(app);
@@ -264,8 +263,6 @@ async function renderPage() {
       await reloadAppData();
       startAutoSync();
       await navigate(p);
-    }, () => {
-      if (!shouldBlockAutoRender()) render();
     });
     app.innerHTML = html;
     attachEvents(app);
@@ -274,6 +271,22 @@ async function renderPage() {
       if (alertEl) alertEl.innerHTML = `<div class="alert alert-error">${oauthBootstrapError}</div>`;
       oauthBootstrapError = null;
     }
+    resetUIBaseline();
+    return;
+  }
+
+  if (needsRoleSelection()) {
+    const { entry } = parseAppUrl();
+    const { html, attachEvents } = renderRoleSelection(async () => {
+      await reloadAppData();
+      startAutoSync();
+      const u = getCurrentUserSync();
+      currentPage = resolvePageAfterAuth(u, entry, null);
+      syncUrlState(currentPage, true);
+      await render();
+    });
+    app.innerHTML = html;
+    attachEvents(app);
     resetUIBaseline();
     return;
   }
@@ -333,8 +346,6 @@ async function renderPage() {
     currentPage = 'login';
     history.replaceState({}, '', window.location.pathname);
     await render();
-  }, () => {
-    if (!shouldBlockAutoRender()) render();
   });
   attachPageEvents(currentPage, user);
   resetUIBaseline();

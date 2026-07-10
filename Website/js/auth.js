@@ -94,8 +94,6 @@ function oauthRedirectUrl() {
 
 export async function completeOAuthSignup() {
   const pendingRole = sessionStorage.getItem('banese_oauth_role');
-  if (!pendingRole) return null;
-
   sessionStorage.removeItem('banese_oauth_role');
   const supabase = getSupabase();
   const { data: { user } } = await supabase.auth.getUser();
@@ -111,6 +109,13 @@ export async function completeOAuthSignup() {
   const isNewUser = profileRow?.created_at
     && (Date.now() - new Date(profileRow.created_at).getTime() < 5 * 60 * 1000);
 
+  if (isNewUser && !pendingRole) {
+    sessionStorage.setItem('banese_needs_role', '1');
+  }
+  if (isNewUser && pendingRole) {
+    sessionStorage.removeItem('banese_needs_role');
+  }
+
   const fullName = user.user_metadata?.full_name
     || user.user_metadata?.name
     || profile.fullName
@@ -118,7 +123,7 @@ export async function completeOAuthSignup() {
     || '';
 
   const updates = {};
-  if (isNewUser && ['qiradhënësi', 'qiramarrësi'].includes(pendingRole) && profile.role !== pendingRole) {
+  if (isNewUser && pendingRole && ['qiradhënësi', 'qiramarrësi'].includes(pendingRole) && profile.role !== pendingRole) {
     updates.role = pendingRole;
   }
   if (!profile.fullName && fullName) {
@@ -140,6 +145,33 @@ export async function completeOAuthSignup() {
       role: updated.role,
     },
   });
+  await clearAuditLog();
+  cachedUser = updated;
+  return updated;
+}
+
+export function needsRoleSelection() {
+  return sessionStorage.getItem('banese_needs_role') === '1';
+}
+
+export async function confirmOAuthRole(role) {
+  if (!['qiradhënësi', 'qiramarrësi'].includes(role)) {
+    throw new Error('Roli nuk është i vlefshëm.');
+  }
+  requireSupabase();
+  const supabase = getSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Sesioni ka skaduar.');
+
+  const updated = await updateProfileSupabase(user.id, { role });
+  await supabase.auth.updateUser({
+    data: {
+      full_name: updated.fullName,
+      role: updated.role,
+      role_confirmed: true,
+    },
+  });
+  sessionStorage.removeItem('banese_needs_role');
   await clearAuditLog();
   cachedUser = updated;
   return updated;

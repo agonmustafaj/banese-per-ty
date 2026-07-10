@@ -77,6 +77,9 @@ const translations = {
 
     'auth.tagline': 'Platforma për Menaxhimin e Qerasë',
     'auth.loginTitle': 'Kyçu në Llogari',
+    'auth.pickRoleTitle': 'Zgjidhni rolin tuaj',
+    'auth.pickRoleHint': 'Keni hyrë me Google. Zgjidhni si doni të përdorni platformën — si qeramarrës apo qeradhënës.',
+    'auth.pickRoleContinue': 'Vazhdo në platformë',
     'auth.registerTitle': 'Regjistrohu',
     'auth.forgotTitle': 'Harrove Fjalëkalimin?',
     'auth.forgotHint': 'Vendosni email-in e llogarisë. Do të merrni një link për rivendosjen e fjalëkalimit.',
@@ -736,28 +739,14 @@ export function setLang(lang) {
 }
 
 export function initI18n() {
-  setLang(detectDefaultLang());
+  setLang('sq');
 }
 
 export function renderLangSwitchHtml() {
-  return `
-    <div class="lang-switch" role="group" aria-label="Language">
-      <button type="button" class="lang-btn ${currentLang === 'sq' ? 'active' : ''}" data-lang="sq">SQ</button>
-      <button type="button" class="lang-btn ${currentLang === 'en' ? 'active' : ''}" data-lang="en">EN</button>
-    </div>`;
+  return '';
 }
 
-export function attachLangSwitch(container, onChange) {
-  container.querySelectorAll('.lang-btn').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const lang = btn.getAttribute('data-lang');
-      if (lang && lang !== currentLang) {
-        setLang(lang);
-        onChange?.(lang);
-      }
-    });
-  });
-}
+export function attachLangSwitch() {}
 
 export function getDeleteConfirmWord() {
   return t('alert.deleteConfirmWord');

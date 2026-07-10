@@ -135,6 +135,7 @@ img { max-width: 100%; display: block; }
     display: flex;
     flex-wrap: nowrap;
     align-items: center;
+    justify-content: space-between;
     gap: 0.35rem;
     height: var(--header-height);
     min-height: var(--header-height);
@@ -162,13 +163,8 @@ img { max-width: 100%; display: block; }
     justify-content: flex-end;
   }
 
-  .header-shell .header-actions .header-controls,
-  .header-shell .header-actions .lang-switch {
-    display: none;
-  }
-
-  .header-actions > .header-cta {
-    display: inline-flex !important;
+  .header-actions .header-cta {
+    display: inline-flex;
     min-width: auto;
     max-width: none;
     padding: 0.45rem 0.55rem;
@@ -176,28 +172,13 @@ img { max-width: 100%; display: block; }
     white-space: nowrap;
     line-height: 1.15;
   }
-
-  .nav-mobile-cta {
-    display: none !important;
-  }
 }
 
-.nav-mobile-prefs {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.65rem;
-  padding: 1rem var(--container-pad);
-  border-top: 1px solid var(--border);
-  margin-top: auto;
-  flex-wrap: wrap;
-}
-
-@media (min-width: 900px) {
-  .nav-mobile-cta,
-  .nav-mobile-prefs {
-    display: none !important;
-  }
+.header-cta {
+  min-width: auto;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
 }
 
 /* ── Nav toggle (CSS-drawn hamburger / close) ── */

@@ -254,6 +254,31 @@
   }
 }
 
+/* Floating theme toggle — visible but outside nav/header bars */
+.theme-fab {
+  position: fixed;
+  right: max(0.75rem, env(safe-area-inset-right));
+  bottom: max(0.85rem, env(safe-area-inset-bottom));
+  z-index: 55;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--bg-card);
+  border: 1.5px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.theme-fab .theme-switch {
+  margin: 0;
+}
+
+@media (min-width: 900px) {
+  .theme-fab {
+    top: calc(var(--header-height) + 0.65rem);
+    bottom: auto;
+    right: max(1rem, env(safe-area-inset-right));
+  }
+}
+
 /* Safe area (notch / home indicator) */
 @supports (padding: max(0px)) {
   .site-header,

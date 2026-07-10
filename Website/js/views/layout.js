@@ -3,15 +3,16 @@ import {
   register,
   requestPasswordReset,
   signInWithGoogle,
+  confirmOAuthRole,
 } from '../auth.js';
 import { getRoleLabel } from '../data.js';
 import { getPendingContractsForTenant, getPendingContractsForLandlord } from '../services.js';
 import { icons } from '../icons.js';
 import { parseAppUrl, resolvePageAfterAuth } from '../nav.js';
-import { t, renderLangSwitchHtml, attachLangSwitch } from '../i18n.js';
-import { renderHeaderControlsHtml, renderThemeToggleHtml, attachThemeToggle } from '../theme.js';
+import { t } from '../i18n.js';
+import { renderThemeToggleHtml, attachThemeToggle } from '../theme.js';
 
-export function renderLogin(onNavigate, onLangChange) {
+export function renderLogin(onNavigate) {
   let mode = 'login';
   let selectedRole = 'qiradhënësi';
 
@@ -78,14 +79,8 @@ export function renderLogin(onNavigate, onLangChange) {
     }
 
     return `
+      ${authShellHeaderHtml()}
       <div class="auth-page">
-        <div class="auth-header">
-          <div class="auth-header-top">
-            <a href="../index.html" class="brand-link"><h1>Banesë <span>për ty</span></h1></a>
-            ${renderHeaderControlsHtml(renderLangSwitchHtml())}
-          </div>
-          <p>${t('auth.tagline')}</p>
-        </div>
         <div class="auth-card">
           <div class="auth-card-header">
             <div class="icon-box">${icons.login}</div>
@@ -106,12 +101,7 @@ export function renderLogin(onNavigate, onLangChange) {
   }
 
   function attachEvents(container) {
-    attachLangSwitch(container, () => {
-      container.innerHTML = render();
-      attachEvents(container);
-      onLangChange?.();
-    });
-    attachThemeToggle(container.querySelector('.header-controls'));
+    container.querySelectorAll('.header-controls').forEach((el) => attachThemeToggle(el));
 
     container.querySelector('#toggle-auth')?.addEventListener('click', (e) => {
       e.preventDefault();
@@ -207,6 +197,116 @@ export function renderLogin(onNavigate, onLangChange) {
   return { html: render(), attachEvents };
 }
 
+function platformLogoSvg(gradId = 'appBrandGrad') {
+  return `
+    <svg class="app-brand-mark" width="34" height="34" viewBox="0 0 40 40" fill="none" aria-hidden="true" focusable="false">
+      <rect width="40" height="40" rx="11" fill="url(#${gradId})"/>
+      <path d="M11.5 21 20 13.5 28.5 21" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M14.5 19.5V27a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-7.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="20" cy="25" r="1.4" fill="#fff"/>
+      <defs>
+        <linearGradient id="${gradId}" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+          <stop offset="0" style="stop-color:var(--primary)"/>
+          <stop offset="1" style="stop-color:var(--primary-dark)"/>
+        </linearGradient>
+      </defs>
+    </svg>`;
+}
+
+function headerThemeHtml() {
+  return `<div class="header-controls">${renderThemeToggleHtml()}</div>`;
+}
+
+function appBrandHtml() {
+  return `
+    <a href="../index.html" class="app-brand">
+      ${platformLogoSvg()}
+      <span class="app-brand-text">Banesë <span>për ty</span></span>
+    </a>`;
+}
+
+function centeredHeaderBarHtml({ center, right = '' }) {
+  return `
+    <div class="header-bar header-bar--centered">
+      <div class="header-bar-slot header-bar-slot--left" aria-hidden="true"></div>
+      <div class="header-bar-slot header-bar-slot--center">${center}</div>
+      <div class="header-bar-slot header-bar-slot--right">${right}</div>
+    </div>`;
+}
+
+function authShellHeaderHtml() {
+  return `
+    <header class="auth-shell-header">
+      ${centeredHeaderBarHtml({
+        center: appBrandHtml(),
+        right: headerThemeHtml(),
+      })}
+    </header>`;
+}
+
+function roleSelectorHtml(selectedRole) {
+  return `
+    <div class="form-group">
+      <label>${t('auth.accountRole')}</label>
+      <div class="role-selector" id="role-selector">
+        <div class="role-option ${selectedRole === 'qiradhënësi' ? 'active' : ''}" data-role="qiradhënësi">${t('role.qiradhënësi')}</div>
+        <div class="role-option ${selectedRole === 'qiramarrësi' ? 'active' : ''}" data-role="qiramarrësi">${t('role.qiramarrësi')}</div>
+      </div>
+    </div>`;
+}
+
+export function renderRoleSelection(onComplete) {
+  let selectedRole = 'qiramarrësi';
+
+  function render() {
+    return `
+      ${authShellHeaderHtml()}
+      <div class="auth-page">
+        <div class="auth-card">
+          <div class="auth-card-header">
+            <div class="icon-box">${icons.user}</div>
+            <h2>${t('auth.pickRoleTitle')}</h2>
+          </div>
+          <div class="auth-card-body">
+            <p class="field-hint">${t('auth.pickRoleHint')}</p>
+            <div id="role-alert"></div>
+            ${roleSelectorHtml(selectedRole)}
+            <button type="button" class="btn btn-primary btn-block btn-lg" id="confirm-role-btn">${t('auth.pickRoleContinue')}</button>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function attachEvents(container) {
+    container.querySelectorAll('.header-controls').forEach((el) => attachThemeToggle(el));
+
+    container.querySelectorAll('.role-option').forEach((el) => {
+      el.addEventListener('click', () => {
+        selectedRole = el.dataset.role;
+        container.innerHTML = render();
+        attachEvents(container);
+      });
+    });
+
+    container.querySelector('#confirm-role-btn')?.addEventListener('click', async () => {
+      const btn = container.querySelector('#confirm-role-btn');
+      const alertEl = container.querySelector('#role-alert');
+      btn.disabled = true;
+      try {
+        await confirmOAuthRole(selectedRole);
+        await onComplete();
+      } catch (err) {
+        if (alertEl) {
+          alertEl.innerHTML = `<div class="alert alert-error">${err.message || 'Gabim.'}</div>`;
+        }
+        btn.disabled = false;
+      }
+    });
+  }
+
+  return { html: render(), attachEvents };
+}
+
 function getPageTitle(role, page) {
   const map = {
     profile: 'page.profile',
@@ -281,30 +381,22 @@ export function renderAppShell(user, page, content, unreadCount = 0) {
     return `
     <div class="app-shell">
       <header class="top-header">
-        <div class="header-bar">
-          <div class="header-left">
-            <h1 class="page-title">${title}</h1>
-            <span class="user-role-badge">${getRoleLabel(role)}</span>
-          </div>
-          <div class="header-actions">
-            <div class="header-controls header-controls--bar">
-              ${renderThemeToggleHtml()}${renderLangSwitchHtml()}
-            </div>
-            <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="top-nav">
-              <span class="nav-toggle-bar"></span>
-              <span class="nav-toggle-bar"></span>
-              <span class="nav-toggle-bar"></span>
-            </button>
-          </div>
-        </div>
-        <nav class="top-nav" id="top-nav">
+        ${centeredHeaderBarHtml({
+          center: appBrandHtml(),
+          right: `${headerThemeHtml()}<span class="user-role-badge user-role-badge--bar">${getRoleLabel(role)}</span>`,
+        })}
+        <nav class="top-nav" id="top-nav" aria-label="Kryesore">
           ${navItems.map((item) => `
-            <button class="${page === item.id ? 'active' : ''}" data-page="${item.id}">
-              ${item.icon} ${item.label}
+            <button class="top-nav-item ${page === item.id ? 'active' : ''}" data-page="${item.id}" title="${item.label}">
+              <span class="top-nav-icon">${item.icon}</span>
+              <span class="top-nav-label">${item.label}</span>
               ${navBadge(item)}
             </button>
           `).join('')}
-          <button class="logout-link" id="logout-btn">${icons.login} ${t('common.logout')}</button>
+          <button class="top-nav-item logout-link" id="logout-btn" title="${t('common.logout')}">
+            <span class="top-nav-icon">${icons.login}</span>
+            <span class="top-nav-label">${t('common.logout')}</span>
+          </button>
         </nav>
       </header>
       <main class="page-content">${content}</main>
@@ -314,46 +406,26 @@ export function renderAppShell(user, page, content, unreadCount = 0) {
   return `
     <div class="app-shell">
       <header class="top-header sub-page-header">
-        <div class="sub-header-user">
-          <span class="user-role-badge user-role-badge--sub">${user.fullName} · ${getRoleLabel(role)}</span>
-        </div>
-        <div class="header-controls header-controls--sub">
-          ${renderThemeToggleHtml()}${renderLangSwitchHtml()}
-        </div>
-        <button class="logout-link logout-link--compact" id="logout-btn">${t('common.logout')}</button>
+        ${centeredHeaderBarHtml({
+          center: appBrandHtml(),
+          right: `${headerThemeHtml()}<button class="logout-link logout-link--compact" id="logout-btn">${t('common.logout')}</button>`,
+        })}
+        <p class="sub-header-meta">${user.fullName} · ${getRoleLabel(role)}</p>
       </header>
       <main class="page-content">${content}</main>
     </div>`;
 }
 
-export function attachShellEvents(container, onNavigate, onLogout, onLangChange) {
-  const navToggle = container.querySelector('#nav-toggle');
-  const topNav = container.querySelector('#top-nav');
-
-  attachLangSwitch(container, () => onLangChange?.());
+export function attachShellEvents(container, onNavigate, onLogout) {
   container.querySelectorAll('.header-controls').forEach((el) => attachThemeToggle(el));
-
-  function setNavOpen(isOpen) {
-    if (!navToggle || !topNav) return;
-    topNav.classList.toggle('nav-open', isOpen);
-    navToggle.classList.toggle('is-open', isOpen);
-    navToggle.setAttribute('aria-expanded', String(isOpen));
-    document.body.classList.toggle('nav-menu-open', isOpen);
-  }
-
-  navToggle?.addEventListener('click', () => {
-    setNavOpen(!topNav.classList.contains('nav-open'));
-  });
 
   container.querySelectorAll('[data-page]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      setNavOpen(false);
       onNavigate(btn.dataset.page);
     });
   });
 
   container.querySelector('#logout-btn')?.addEventListener('click', () => {
-    setNavOpen(false);
     onLogout();
   });
 }

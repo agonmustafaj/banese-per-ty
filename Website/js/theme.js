@@ -5,4 +5,5 @@ export {
   renderThemeToggleHtml,
   attachThemeToggle,
   renderHeaderControlsHtml,
+  renderThemeFabHtml,
 } from '../../js/theme.js';

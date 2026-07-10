@@ -53,3 +53,7 @@ export function attachThemeToggle(container, onChange) {
 export function renderHeaderControlsHtml(renderLangHtml) {
   return `<div class="header-controls">${renderThemeToggleHtml()}${renderLangHtml || ''}</div>`;
 }
+
+export function renderThemeFabHtml() {
+  return `<div class="theme-fab" aria-label="Tema">${renderThemeToggleHtml()}</div>`;
+}
