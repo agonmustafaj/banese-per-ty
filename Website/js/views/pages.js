@@ -194,9 +194,12 @@ export function renderAdminHome() {
     <div class="activity-feed">
       <h4>${t('admin.auditLog')}</h4>
       ${audit.map((a) => `
-        <div class="activity-item">
-          <div class="title">${a.action}</div>
-          <div class="meta">${a.details} — ${formatLocaleString(a.timestamp)}</div>
+        <div class="activity-item" data-audit-id="${a.id}">
+          <div class="activity-item-body">
+            <div class="title">${a.action}</div>
+            <div class="meta">${a.details} — ${formatLocaleString(a.timestamp)}</div>
+          </div>
+          <button type="button" class="btn btn-danger btn-sm admin-delete-audit-btn" data-audit-id="${a.id}" aria-label="${t('common.delete')}">${t('common.delete')}</button>
         </div>`).join('') || `<p class="empty-state">${t('admin.noActivity')}</p>`}
     </div>`;
 }

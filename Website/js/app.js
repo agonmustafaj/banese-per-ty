@@ -61,6 +61,7 @@ import {
   getPendingContractsForTenant,
   loadData,
 } from './services.js';
+import { deleteAuditLogEntry } from './services-core.js';
 import { downloadContractPdf, downloadPaymentsPdf } from './pdf.js';
 import { hydrateContractSignatures, getPaymentProofSignedUrl } from './supabase/sync.js';
 import { formatDate, saveData, saveDataAsync } from './data.js';
@@ -408,6 +409,20 @@ function attachPageEvents(page, user) {
         if (!result.success) { alert(result.error); render(); return; }
         alert(approved ? t('alert.propertyApproved') : t('alert.propertyRejected'));
         await render();
+      });
+    });
+  }
+
+  if (page === 'home' && user.role === 'administrator') {
+    app.querySelectorAll('.admin-delete-audit-btn').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm(t('admin.deleteAuditConfirm'))) return;
+        const result = await deleteAuditLogEntry(btn.dataset.auditId);
+        if (result.success) {
+          await render();
+        } else {
+          alert(result.error);
+        }
       });
     });
   }

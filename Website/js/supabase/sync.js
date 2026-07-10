@@ -459,6 +459,12 @@ export async function clearAuditLogSupabase() {
   if (error) throw error;
 }
 
+export async function deleteAuditLogSupabase(id) {
+  const supabase = getSupabase();
+  const { error } = await supabase.from('audit_log').delete().eq('id', id);
+  if (error) throw error;
+}
+
 export async function fetchAllProfiles() {
   const supabase = getSupabase();
   const { data, error } = await supabase.from('profiles').select('*').order('full_name');

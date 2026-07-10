@@ -146,6 +146,7 @@ const translations = {
     'admin.reviewProperties': 'Shqyrto Pronat ({count})',
     'admin.auditLog': 'Audit Log',
     'admin.noActivity': 'Asnjë aktivitet.',
+    'admin.deleteAuditConfirm': 'Fshi këtë regjistrim nga audit log?',
     'admin.noPending': 'Nuk ka prona në pritje.',
     'admin.reviewHint': 'Shqyrtoni të dhënat dhe fotot e çdo prone para miratimit ose refuzimit.',
     'admin.propertyDetails': 'Detajet e pronës',

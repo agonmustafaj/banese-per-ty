@@ -1,6 +1,6 @@
 import { loadData, saveData, generateId } from './data.js';
 import { isSupabaseEnabled } from './config.js';
-import { insertNotificationSupabase, insertAuditSupabase, clearAuditLogSupabase } from './supabase/sync.js';
+import { insertNotificationSupabase, insertAuditSupabase, clearAuditLogSupabase, deleteAuditLogSupabase } from './supabase/sync.js';
 
 export async function addNotificationAsync(userId, type, message, existingData = null) {
   const notification = {
@@ -89,4 +89,28 @@ export function addAuditLog(action, userId, details, existingData = null) {
   }
 
   if (!existingData) saveData(data);
+}
+
+export async function deleteAuditLogEntry(id) {
+  if (!id) return { success: false, error: 'Regjistrimi nuk u gjet.' };
+
+  const data = loadData();
+  const before = data.auditLog.length;
+  data.auditLog = data.auditLog.filter((l) => l.id !== id);
+  if (data.auditLog.length === before) {
+    return { success: false, error: 'Regjistrimi nuk u gjet.' };
+  }
+  saveData(data);
+
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+  if (isSupabaseEnabled() && isUuid(id)) {
+    try {
+      await deleteAuditLogSupabase(id);
+    } catch (err) {
+      console.error('Fshirje audit log:', err);
+      return { success: false, error: err.message || 'Gabim gjatë fshirjes.' };
+    }
+  }
+
+  return { success: true };
 }

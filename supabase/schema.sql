@@ -231,6 +231,7 @@ create policy "notifications_own" on public.notifications for all using (user_id
 -- Audit log
 create policy "audit_insert" on public.audit_log for insert with check (auth.uid() is not null);
 create policy "audit_select" on public.audit_log for select using (user_id = auth.uid() or public.is_admin());
+create policy "audit_delete_admin" on public.audit_log for delete using (public.is_admin());
 
 -- Fshirje llogarie & pastrim audit (RPC)
 create or replace function public.clear_audit_log()
