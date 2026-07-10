@@ -91,6 +91,8 @@ const translations = {
     'auth.student': 'Student',
     'auth.campus': 'Kampus / Fakultet',
     'auth.password': 'Fjalëkalimi',
+    'auth.showPassword': 'Shfaq fjalëkalimin',
+    'auth.hidePassword': 'Fshih fjalëkalimin',
     'auth.forgotLink': 'Harrove fjalëkalimin?',
     'auth.loginBtn': 'Kyçu',
     'auth.registerBtn': 'Regjistrohu',

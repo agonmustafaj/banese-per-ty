@@ -27,6 +27,31 @@ export function renderLogin(onNavigate) {
       </div>`;
   }
 
+  function passwordFieldHtml() {
+    return `
+      <div class="form-group">
+        <label>${icons.lock} ${t('auth.password')}</label>
+        <div class="password-field">
+          <input type="password" name="password" id="auth-password" required minlength="6" autocomplete="${mode === 'register' ? 'new-password' : 'current-password'}" />
+          <button type="button" class="password-toggle" id="auth-password-toggle" aria-label="${t('auth.showPassword')}" aria-pressed="false">${icons.eye}</button>
+        </div>
+      </div>`;
+  }
+
+  function attachPasswordToggle(container) {
+    const input = container.querySelector('#auth-password');
+    const btn = container.querySelector('#auth-password-toggle');
+    if (!input || !btn) return;
+
+    btn.addEventListener('click', () => {
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.setAttribute('aria-pressed', String(show));
+      btn.setAttribute('aria-label', show ? t('auth.hidePassword') : t('auth.showPassword'));
+      btn.innerHTML = show ? icons.eyeOff : icons.eye;
+    });
+  }
+
   function googleButtonHtml() {
     return `
       <div class="auth-divider"><span>${t('auth.or')}</span></div>
@@ -64,7 +89,7 @@ export function renderLogin(onNavigate) {
             ${roleSelectorHtml()}
           ` : ''}
           <div class="form-group"><label>${icons.mail} ${t('common.email')}</label><input type="email" name="email" required placeholder="${t('auth.emailPlaceholder')}" /></div>
-          <div class="form-group"><label>${icons.lock} ${t('auth.password')}</label><input type="password" name="password" required minlength="6" /></div>
+          ${passwordFieldHtml()}
           ${mode === 'login' ? `
             <div class="form-row">
               <a href="#" id="forgot-link">${t('auth.forgotLink')}</a>
@@ -102,6 +127,7 @@ export function renderLogin(onNavigate) {
 
   function attachEvents(container) {
     container.querySelectorAll('.header-controls').forEach((el) => attachThemeToggle(el));
+    attachPasswordToggle(container);
 
     container.querySelector('#toggle-auth')?.addEventListener('click', (e) => {
       e.preventDefault();

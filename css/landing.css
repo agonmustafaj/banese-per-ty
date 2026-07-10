@@ -51,8 +51,7 @@ img { max-width: 100%; display: block; }
 
 /* ── Header (mobile-first) ── */
 .site-header {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 50;
   background: var(--header-bg);
   backdrop-filter: blur(10px);
@@ -175,6 +174,12 @@ img { max-width: 100%; display: block; }
   .header-actions .header-cta {
     display: none !important;
   }
+
+  .header-shell .nav-toggle-bar:nth-child(1) { top: 4px; }
+  .header-shell .nav-toggle-bar:nth-child(2) { top: 13px; }
+  .header-shell .nav-toggle-bar:nth-child(3) { top: 22px; }
+  .header-shell .nav-toggle.is-open .nav-toggle-bar:nth-child(1) { top: 13px; }
+  .header-shell .nav-toggle.is-open .nav-toggle-bar:nth-child(3) { top: 13px; }
 
   .hero-platform-cta {
     display: inline-flex;
@@ -792,7 +797,10 @@ body.nav-menu-open { overflow: hidden; }
     --container-pad: 1.5rem;
   }
 
-  .site-header { position: sticky; }
+  .site-header {
+    position: sticky;
+    top: 0;
+  }
 
   .header-shell { gap: 1rem; }
 
