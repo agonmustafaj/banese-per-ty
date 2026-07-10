@@ -2,7 +2,7 @@ import { loadData, saveData } from './data.js';
 import { addAuditLog, clearAuditLog } from './services-core.js';
 import { isSupabaseEnabled } from './config.js';
 import { getSupabase } from './supabase/client.js';
-import { fetchProfile, updateProfileSupabase, deleteOwnAccountSupabase, deleteUserByAdminSupabase } from './supabase/sync.js';
+import { ensureUserProfile, updateProfileSupabase, deleteOwnAccountSupabase, deleteUserByAdminSupabase } from './supabase/sync.js';
 import { checkEmailRateLimit, recordEmailAttempt, isEmailRateLimitError } from './auth-rate-limit.js';
 import { markSessionStart, clearSessionStart, syncSessionStartFromSupabase } from './auth-session.js';
 import { t } from './i18n.js';
@@ -46,7 +46,7 @@ export async function initAuth() {
     syncSessionStartFromSupabase(session);
     try {
       await completeOAuthSignup();
-      cachedUser = await fetchProfile(session.user.id);
+      cachedUser = await ensureUserProfile(session.user.id);
     } catch (_) {
       if (!cachedUser || cachedUser.id !== session.user.id) {
         cachedUser = {
@@ -70,7 +70,7 @@ export async function initAuth() {
       }
       try {
         if (event === 'SIGNED_IN') await completeOAuthSignup();
-        cachedUser = await fetchProfile(session.user.id);
+        cachedUser = await ensureUserProfile(session.user.id);
       } catch (_) {
         if (!cachedUser || cachedUser.id !== session.user.id) {
           cachedUser = {
@@ -99,7 +99,7 @@ export async function completeOAuthSignup() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const profile = await fetchProfile(user.id);
+  const profile = await ensureUserProfile(user.id);
   const { data: profileRow } = await supabase
     .from('profiles')
     .select('created_at')
@@ -215,7 +215,7 @@ export async function getCurrentUser() {
     return null;
   }
   if (cachedUser?.id === session.user.id) return cachedUser;
-  cachedUser = await fetchProfile(session.user.id);
+  cachedUser = await ensureUserProfile(session.user.id);
   return cachedUser;
 }
 
@@ -236,6 +236,9 @@ function formatAuthError(error, waitSeconds) {
   }
   if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already been registered')) {
     return t('auth.error.userExists');
+  }
+  if (msg.includes('PGRST116') || msg.toLowerCase().includes('profili nuk u gjet')) {
+    return 'Llogaria u krijua por profili mungon. Provoni të kyçeni përsëri ose kontaktoni administratorin.';
   }
   if (msg.toLowerCase().includes('provider is not enabled') || msg.toLowerCase().includes('unsupported provider')) {
     return t('auth.error.googleNotEnabled');
@@ -272,7 +275,7 @@ export async function login(email, password) {
         : error.message;
       return { success: false, error: msg };
     }
-    cachedUser = await fetchProfile(data.user.id);
+    cachedUser = await ensureUserProfile(data.user.id);
     markSessionStart();
     await clearAuditLog();
     return { success: true, user: cachedUser };
@@ -316,6 +319,14 @@ export async function register({ fullName, email, password, role }) {
       return { success: false, error: formatAuthError(error) };
     }
 
+    if (!data.user) {
+      return { success: false, error: t('auth.error.generic') };
+    }
+
+    if (data.user.identities && data.user.identities.length === 0) {
+      return { success: false, error: t('auth.error.userExists') };
+    }
+
     recordEmailAttempt('register', normalizedEmail);
 
     if (!data.session) {
@@ -326,7 +337,7 @@ export async function register({ fullName, email, password, role }) {
       };
     }
 
-    cachedUser = await fetchProfile(data.user.id);
+    cachedUser = await ensureUserProfile(data.user.id);
     markSessionStart();
     await clearAuditLog();
     return { success: true, user: cachedUser };

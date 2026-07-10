@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /Website/
+
+Sitemap: https://banese-per-ty.netlify.app/sitemap.xml

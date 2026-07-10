@@ -186,6 +186,7 @@ alter table public.agency_requests enable row level security;
 
 -- Profiles
 create policy "profiles_select" on public.profiles for select using (true);
+create policy "profiles_insert_own" on public.profiles for insert with check (id = auth.uid());
 create policy "profiles_update_own" on public.profiles for update using (id = auth.uid());
 create policy "profiles_admin_all" on public.profiles for all using (public.is_admin());
 

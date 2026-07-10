@@ -197,9 +197,9 @@ export function renderLogin(onNavigate) {
           });
           if (result.success) {
             if (result.needsConfirmation) {
-              showAlert(container, 'info', result.message);
+              showAlert(container, 'success', result.message);
               mode = 'login';
-              setTimeout(() => { container.innerHTML = render(); attachEvents(container); }, 2500);
+              setTimeout(() => { container.innerHTML = render(); attachEvents(container); }, 5000);
             } else {
               const { entry } = parseAppUrl();
               onNavigate(resolvePageAfterAuth(result.user, entry, null));

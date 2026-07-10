@@ -428,10 +428,49 @@ export async function hydrateContractSignatures(contracts = []) {
   return contracts;
 }
 
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 export async function fetchProfile(userId) {
   const supabase = getSupabase();
   const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
   if (error) throw error;
+  return profileToUser(data);
+}
+
+/** Merr profilin pas regjistrimit — prit trigger-in ose krijoje nëse mungon. */
+export async function ensureUserProfile(userId) {
+  const supabase = getSupabase();
+  let lastError = null;
+
+  for (let i = 0; i < 6; i++) {
+    const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+    if (!error && data) return profileToUser(data);
+    lastError = error;
+    if (i < 5) await sleep(250 * (i + 1));
+  }
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user || user.id !== userId) {
+    throw lastError || new Error('Profili nuk u gjet.');
+  }
+
+  const row = {
+    id: userId,
+    full_name: user.user_metadata?.full_name || user.user_metadata?.name || '',
+    email: user.email || '',
+    role: user.user_metadata?.role || 'qiramarrësi',
+    user_type: user.user_metadata?.user_type || 'employed',
+    campus_id: user.user_metadata?.campus_id || '',
+  };
+
+  const { data, error } = await supabase.from('profiles').insert(row).select().single();
+  if (error) {
+    const retry = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+    if (!retry.error && retry.data) return profileToUser(retry.data);
+    throw error;
+  }
   return profileToUser(data);
 }
 
