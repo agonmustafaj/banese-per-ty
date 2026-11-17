@@ -1,6 +1,6 @@
 # SEO — Banesë për ty
 
-Platforma: **https://banese-per-ty.netlify.app/**  
+Platforma: **https://banese-per-ty.agonmustafaj01.workers.dev/**  
 Gjuha kryesore: **shqip (sq)**  
 Webapp (`/Website/`) **nuk indeksohet** — vetëm faqja kryesore (landing).
 
@@ -27,9 +27,9 @@ Webapp (`/Website/`) **nuk indeksohet** — vetëm faqja kryesore (landing).
 
 ### Google Search Console (prioritet i lartë)
 1. Hyr në [Google Search Console](https://search.google.com/search-console)
-2. Shto pronën: `https://banese-per-ty.netlify.app`
+2. Shto pronën: `https://banese-per-ty.agonmustafaj01.workers.dev`
 3. Verifiko pronën (HTML tag ose DNS)
-4. Dërgo sitemap: `https://banese-per-ty.netlify.app/sitemap.xml`
+4. Dërgo sitemap: `https://banese-per-ty.agonmustafaj01.workers.dev/sitemap.xml`
 5. Kërko indeksim manual për faqen kryesore (URL Inspection → Request indexing)
 
 ### Google Business / lokal (nëse ke entitet)
@@ -51,14 +51,14 @@ Webapp (`/Website/`) **nuk indeksohet** — vetëm faqja kryesore (landing).
 ### Linke (backlinks)
 - Listo platformën në direktoriume lokale / startup Kosovë
 - Lidhje nga rrjetet sociale (Facebook, Instagram, LinkedIn) te faqja kryesore
-- Partnerë / KREN / universitete — link te `banese-per-ty.netlify.app`
+- Partnerë / KREN / universitete — link te `banese-per-ty.agonmustafaj01.workers.dev`
 
 ### Rrjetet sociale
 - Kur ndan linkun, kontrollo që shfaqet titulli dhe përshkrimi (Open Graph)
 - Shto një imazh social `og:image` (1200×630 px) kur të kesh logo/banner
 
 ### Domain custom (rekomandohet për SEO afatgjatë)
-- P.sh. `baneseperty.com` ose `banese-per-ty.com` → redirect 301 nga Netlify
+- P.sh. `baneseperty.com` ose `banese-per-ty.com` → redirect 301 nga Cloudflare Workers / Custom Domains
 - Përditëso `canonical`, sitemap dhe Search Console me domain-in e ri
 
 ---
@@ -88,9 +88,9 @@ Webapp (`/Website/`) **nuk indeksohet** — vetëm faqja kryesore (landing).
 ## Kontroll i shpejtë pas çdo deploy
 
 ```
-https://banese-per-ty.netlify.app/robots.txt
-https://banese-per-ty.netlify.app/sitemap.xml
-https://banese-per-ty.netlify.app/
+https://banese-per-ty.agonmustafaj01.workers.dev/robots.txt
+https://banese-per-ty.agonmustafaj01.workers.dev/sitemap.xml
+https://banese-per-ty.agonmustafaj01.workers.dev/
 ```
 
 Në browser: View Page Source → kontrollo `<title>`, `description`, `canonical`.
