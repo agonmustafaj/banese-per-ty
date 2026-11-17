@@ -2,7 +2,7 @@
 
 Platformë web për menaxhimin e qerasë në Kosovë — lidh **qeradhënësit**, **qeramarrësit** dhe **administratorin** në një sistem të vetëm: publikim pronash, miratim nga admini, kërkim banesash, kontrata elektronike, pagesa dhe njoftime.
 
-**Demo live:** https://banese-per-ty.netlify.app  
+**Demo live:** https://banese-per-ty.agonmustafaj01.workers.dev/  
 **Repository:** https://github.com/agonmustafaj/banese-per-ty
 
 ---
@@ -13,7 +13,7 @@ Platformë web për menaxhimin e qerasë në Kosovë — lidh **qeradhënësit**
 |--------|------------|
 | Frontend | HTML5, CSS3, JavaScript (ES modules) |
 | Backend / DB | [Supabase](https://supabase.com) — PostgreSQL, Auth, Storage, RLS |
-| Deploy | Netlify (statik) |
+| Deploy | Cloudflare Workers (statik) |
 | PDF | Gjenerim kontratash në shfletues (`pdf.js`) |
 
 Nuk ka Node.js runtime për aplikacionin — vetëm skedarë statikë + API Supabase.
@@ -126,7 +126,7 @@ UPDATE public.profiles SET role = 'administrator' WHERE email = 'emaili-juaj@exa
 ## Konfigurim Supabase (përmbledhje)
 
 - **Auth:** Email + (opsionale) Google OAuth  
-- **URL redirect:** `https://banese-per-ty.netlify.app/Website/index.html`  
+- **URL redirect:** `https://banese-per-ty.agonmustafaj01.workers.dev/Website/index.html`  
 - **Storage:** `property-photos`, `payment-proofs`, `contract-signatures`  
 - **Mos** vendosni `service_role` key në frontend — vetëm `anon` / publishable key
 

@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /Website/
 
-Sitemap: https://banese-per-ty.netlify.app/sitemap.xml
+Sitemap: https://banese-per-ty.agonmustafaj01.workers.dev/sitemap.xml
